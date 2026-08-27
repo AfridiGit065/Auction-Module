@@ -113,10 +113,12 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
+DROP TRIGGER IF EXISTS settings_updated_at ON settings;
 CREATE TRIGGER settings_updated_at
   BEFORE UPDATE ON settings
   FOR EACH ROW EXECUTE FUNCTION update_updated_at();
 
+DROP TRIGGER IF EXISTS auction_state_updated_at ON auction_state;
 CREATE TRIGGER auction_state_updated_at
   BEFORE UPDATE ON auction_state
   FOR EACH ROW EXECUTE FUNCTION update_updated_at();
