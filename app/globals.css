@@ -666,6 +666,37 @@ a {
   transition: var(--transition-fast);
 }
 
+.btn-undo-action {
+  background: rgba(255, 170, 0, 0.12);
+  border: 1px solid rgba(255, 170, 0, 0.4);
+  color: #ffb800;
+  border-radius: 6px;
+  padding: 6px 12px;
+  font-family: var(--font-sports);
+  font-size: 0.85rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: var(--transition-fast);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+}
+
+.btn-undo-action:hover:not(:disabled) {
+  background: rgba(255, 170, 0, 0.25);
+  border-color: #ffb800;
+  color: #fff;
+  box-shadow: 0 0 10px rgba(255, 170, 0, 0.3);
+}
+
+.btn-undo-action:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+  border-color: rgba(255, 255, 255, 0.1);
+  color: var(--text-muted);
+}
+
 /* COMPACT LIVE BID LOG AT BOTTOM OF CENTER COLUMN */
 .center-bid-log {
   background: rgba(0, 0, 0, 0.35);
@@ -2938,3 +2969,115 @@ a {
     padding-bottom: 28px;
   }
 }
+
+/* ================= CATEGORY WISE PLAYERS MANAGER & DISPLAY ================= */
+.cat-filter-bar {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  align-items: center;
+  margin-bottom: 14px;
+}
+
+.cat-pill-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 14px;
+  border-radius: 8px;
+  font-family: var(--font-sports);
+  font-size: 0.85rem;
+  font-weight: 700;
+  cursor: pointer;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  color: var(--text-gray);
+  transition: all 0.2s ease;
+}
+
+.cat-pill-btn:hover {
+  color: var(--text-white);
+  border-color: rgba(255, 215, 0, 0.4);
+  background: rgba(255, 215, 0, 0.08);
+}
+
+.cat-pill-btn.active {
+  color: #000;
+  background: linear-gradient(135deg, #ffd700, #ffaa00);
+  border-color: var(--accent-gold);
+  box-shadow: 0 0 14px rgba(255, 215, 0, 0.35);
+}
+
+.cat-pill-badge {
+  font-size: 0.72rem;
+  padding: 1px 6px;
+  border-radius: 10px;
+  background: rgba(0, 0, 0, 0.3);
+  color: inherit;
+}
+
+.cat-pill-btn.active .cat-pill-badge {
+  background: rgba(0, 0, 0, 0.7);
+  color: #ffd700;
+}
+
+.cat-section-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px 16px;
+  background: linear-gradient(90deg, rgba(255, 215, 0, 0.12), rgba(0, 136, 255, 0.06), rgba(0, 0, 0, 0.3));
+  border: 1px solid rgba(255, 215, 0, 0.25);
+  border-radius: 10px;
+  margin-top: 18px;
+  margin-bottom: 12px;
+}
+
+.cat-section-title {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-family: var(--font-sports);
+  font-size: 1.1rem;
+  font-weight: 800;
+  color: var(--accent-gold);
+}
+
+.cat-section-stats {
+  display: flex;
+  gap: 12px;
+  font-size: 0.8rem;
+  align-items: center;
+}
+
+.cat-stat-chip {
+  padding: 2px 8px;
+  border-radius: 6px;
+  background: rgba(0, 0, 0, 0.4);
+  border: 1px solid var(--border-glass);
+}
+
+.admin-players-filter-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 14px;
+}
+
+.admin-search-input {
+  background: var(--bg-primary);
+  border: 1px solid var(--border-glass);
+  color: var(--text-white);
+  padding: 7px 12px;
+  border-radius: 6px;
+  font-size: 0.85rem;
+  min-width: 220px;
+}
+
+.admin-search-input:focus {
+  outline: none;
+  border-color: var(--accent-gold);
+}
+

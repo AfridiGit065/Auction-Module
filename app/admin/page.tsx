@@ -25,6 +25,12 @@ export default function AdminPage() {
   const [teamModal, setTeamModal] = useState<Partial<Team> | null>(null);
   const [selectedPlayerToStart, setSelectedPlayerToStart] = useState<string>('');
 
+  // Player Manager Pane Filters & View Mode
+  const [managerCategoryFilter, setManagerCategoryFilter] = useState<string>('ALL');
+  const [managerSearchQuery, setManagerSearchQuery] = useState<string>('');
+  const [managerStatusFilter, setManagerStatusFilter] = useState<string>('ALL');
+  const [managerViewMode, setManagerViewMode] = useState<'tabbed' | 'grouped'>('tabbed');
+
   const showToast = (message: string, type: 'info' | 'success' | 'warning' | 'danger' = 'info') => {
     setToast({ message, type });
     setTimeout(() => setToast(null), 4000);
@@ -212,6 +218,18 @@ export default function AdminPage() {
     if (res.ok) {
       showToast('Timer RESUMED', 'success');
       loadAdminData();
+    }
+  };
+
+  const handleUndoBid = async () => {
+    if (!confirm('Are you sure you want to undo the last bid?')) return;
+    const res = await fetch('/api/auction/undo-bid', { method: 'POST' });
+    const data = await res.json();
+    if (res.ok) {
+      showToast(data.message || 'Last bid undone!', 'warning');
+      loadAdminData();
+    } else {
+      showToast(data.error || 'Failed to undo bid', 'danger');
     }
   };
 
@@ -511,6 +529,17 @@ export default function AdminPage() {
                       </button>
                     </div>
 
+                    <div style={{ marginTop: '10px', display: 'flex', justifyContent: 'flex-end' }}>
+                      <button
+                        className="btn-undo-action"
+                        disabled={!leadingTeam && (!auctionState?.current_bid || auctionState.current_bid === 0)}
+                        onClick={handleUndoBid}
+                        title="Undo the most recent live bid"
+                      >
+                        ↩ UNDO LAST BID
+                      </button>
+                    </div>
+
                     <div style={{ marginTop: '10px', paddingTop: '10px', borderTop: '1px solid var(--border-glass)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                       <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Start a fresh session anytime:</span>
                       <button
@@ -612,75 +641,348 @@ export default function AdminPage() {
             )}
 
             {/* PLAYERS PANE */}
-            {activePane === 'players' && (
-              <div className="admin-pane active">
-                <div className="pane-header">
-                  <h2>PLAYERS MANAGEMENT ({players.length})</h2>
-                  <button
-                    className="btn btn-accent"
-                    onClick={() =>
-                      setPlayerModal({
-                        name: '',
-                        category: 'H',
-                        position: 'Forward',
-                        base_price: 5000,
-                        sort_order: players.length + 1,
-                      })
-                    }
-                  >
-                    + Add New Player
-                  </button>
-                </div>
+            {activePane === 'players' && (() => {
+              const ALL_CATEGORIES = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'];
+              const defaultPrices: Record<string, number> = {
+                A: 25000, B: 18000, C: 15000, D: 12000,
+                E: 10000, F: 8000, G: 7000, H: 5000,
+              };
 
-                <div className="table-wrapper">
-                  <table className="admin-table">
-                    <thead>
-                      <tr>
-                        <th>Order</th>
-                        <th>Photo</th>
-                        <th>Name</th>
-                        <th>Category</th>
-                        <th>Position</th>
-                        <th>Base Price</th>
-                        <th>Status</th>
-                        <th>Actions</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {players.map((p) => (
-                        <tr key={p.id}>
-                          <td>#{p.sort_order}</td>
-                          <td>
-                            {p.photo_url ? (
-                              <img src={p.photo_url} alt={p.name} style={{ width: 36, height: 36, objectFit: 'cover', borderRadius: '50%' }} />
-                            ) : (
-                              <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>No Photo</span>
-                            )}
-                          </td>
-                          <td style={{ fontWeight: 600 }}>{p.name}</td>
-                          <td>CAT {p.category}</td>
-                          <td>{p.position}</td>
-                          <td className="text-accent">৳{p.base_price.toLocaleString()}</td>
-                          <td>
-                            <span className={`player-card-badge badge-${p.status.toLowerCase()}`}>
-                              {p.status}
-                            </span>
-                          </td>
-                          <td>
-                            <button className="btn btn-secondary" style={{ marginRight: 6 }} onClick={() => setPlayerModal(p)}>
-                              Edit
-                            </button>
-                            <button className="btn btn-danger" onClick={() => handleDeletePlayer(p.id)}>
-                              Delete
-                            </button>
-                          </td>
+              // Filter players by category, search text, and status
+              const applyFilters = (plist: Player[]) => {
+                return plist.filter(p => {
+                  if (managerCategoryFilter !== 'ALL' && p.category.toUpperCase() !== managerCategoryFilter.toUpperCase()) {
+                    return false;
+                  }
+                  if (managerStatusFilter !== 'ALL' && p.status.toUpperCase() !== managerStatusFilter.toUpperCase()) {
+                    return false;
+                  }
+                  if (managerSearchQuery.trim()) {
+                    const q = managerSearchQuery.toLowerCase();
+                    const buyerTeam = teams.find(t => t.id === p.sold_to);
+                    return (
+                      p.name.toLowerCase().includes(q) ||
+                      p.position.toLowerCase().includes(q) ||
+                      (buyerTeam && buyerTeam.name.toLowerCase().includes(q))
+                    );
+                  }
+                  return true;
+                });
+              };
+
+              const displayedPlayers = applyFilters(players);
+
+              const openAddPlayerModal = (cat?: string) => {
+                const targetCat = cat || (managerCategoryFilter !== 'ALL' ? managerCategoryFilter : 'A');
+                setPlayerModal({
+                  name: '',
+                  category: targetCat,
+                  position: 'Forward',
+                  base_price: defaultPrices[targetCat] || 5000,
+                  sort_order: players.length + 1,
+                });
+              };
+
+              const renderPlayerTable = (playerList: Player[], categoryLabel?: string) => {
+                if (playerList.length === 0) {
+                  return (
+                    <div style={{ textAlign: 'center', padding: '24px', color: 'var(--text-muted)', background: 'rgba(0,0,0,0.2)', borderRadius: '8px' }}>
+                      No players found {categoryLabel ? `in Category ${categoryLabel}` : ''}.
+                    </div>
+                  );
+                }
+
+                return (
+                  <div className="table-wrapper" style={{ overflowX: 'auto' }}>
+                    <table className="admin-table" style={{ fontSize: '0.85rem' }}>
+                      <thead>
+                        <tr>
+                          <th style={{ width: '60px' }}>Order</th>
+                          <th style={{ width: '50px' }}>Photo</th>
+                          <th>Name</th>
+                          <th style={{ width: '80px' }}>Category</th>
+                          <th>Position</th>
+                          <th>Base Price</th>
+                          <th>Status</th>
+                          <th>Sold Info</th>
+                          <th style={{ width: '220px' }}>Actions</th>
                         </tr>
-                      ))}
-                    </tbody>
-                  </table>
+                      </thead>
+                      <tbody>
+                        {playerList.map((p) => {
+                          const buyerTeam = teams.find(t => t.id === p.sold_to);
+                          const isLive = p.status === 'LIVE';
+
+                          return (
+                            <tr key={p.id}>
+                              <td><strong>#{p.sort_order}</strong></td>
+                              <td>
+                                {p.photo_url ? (
+                                  <img src={p.photo_url} alt={p.name} style={{ width: 34, height: 34, objectFit: 'cover', borderRadius: '50%', border: '1px solid var(--border-glass)' }} />
+                                ) : (
+                                  <div style={{ width: 34, height: 34, borderRadius: '50%', background: 'rgba(255,255,255,0.08)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.7rem', color: 'var(--text-muted)' }}>
+                                    {p.name.substring(0, 2).toUpperCase()}
+                                  </div>
+                                )}
+                              </td>
+                              <td style={{ fontWeight: 700, fontSize: '0.92rem' }}>{p.name}</td>
+                              <td>
+                                <span className="player-card-category" style={{ padding: '2px 6px', fontSize: '0.75rem' }}>
+                                  CAT {p.category}
+                                </span>
+                              </td>
+                              <td>{p.position}</td>
+                              <td className="text-accent" style={{ fontWeight: 700 }}>৳{p.base_price.toLocaleString()}</td>
+                              <td>
+                                <span className={`player-card-badge badge-${p.status.toLowerCase()}`}>
+                                  {p.status}
+                                </span>
+                              </td>
+                              <td style={{ fontSize: '0.8rem' }}>
+                                {p.status === 'SOLD' && buyerTeam ? (
+                                  <div>
+                                    <span style={{ color: 'var(--accent-gold)', fontWeight: 600 }}>{buyerTeam.name}</span>
+                                    <div style={{ color: '#00d26a', fontWeight: 700 }}>৳{p.sold_price?.toLocaleString()}</div>
+                                  </div>
+                                ) : (
+                                  <span style={{ color: 'var(--text-muted)' }}>—</span>
+                                )}
+                              </td>
+                              <td>
+                                <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap' }}>
+                                  <button
+                                    className="btn btn-secondary"
+                                    style={{ padding: '3px 8px', fontSize: '0.75rem' }}
+                                    onClick={() => setPlayerModal(p)}
+                                  >
+                                    ✏️ Edit
+                                  </button>
+                                  <button
+                                    className="btn btn-danger"
+                                    style={{ padding: '3px 8px', fontSize: '0.75rem' }}
+                                    onClick={() => handleDeletePlayer(p.id)}
+                                  >
+                                    🗑️ Delete
+                                  </button>
+                                  {!isLive && (
+                                    <button
+                                      className="btn btn-accent"
+                                      style={{ padding: '3px 8px', fontSize: '0.75rem', fontWeight: 700 }}
+                                      onClick={() => handleLoadPlayer(p.id)}
+                                      title="Load directly to Live Auction Board"
+                                    >
+                                      ▶ Load
+                                    </button>
+                                  )}
+                                </div>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                );
+              };
+
+              return (
+                <div className="admin-pane active" style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+                  {/* PANE HEADER */}
+                  <div className="pane-header" style={{ marginBottom: 0 }}>
+                    <div>
+                      <h2 style={{ margin: 0, fontSize: '1.3rem', color: 'var(--text-white)' }}>
+                        👥 PLAYERS MANAGEMENT ({players.length} Total)
+                      </h2>
+                      <p style={{ margin: '4px 0 0 0', fontSize: '0.8rem', color: 'var(--text-gray)' }}>
+                        Manage player profiles, categories, base prices, photos, and live auction order.
+                      </p>
+                    </div>
+                    <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                      {/* View Mode Toggle */}
+                      <div style={{ display: 'flex', background: 'rgba(0,0,0,0.4)', borderRadius: '6px', border: '1px solid var(--border-glass)', padding: '2px' }}>
+                        <button
+                          type="button"
+                          className={`btn ${managerViewMode === 'tabbed' ? 'btn-accent' : 'btn-secondary'}`}
+                          style={{ padding: '4px 10px', fontSize: '0.75rem', borderRadius: '4px' }}
+                          onClick={() => setManagerViewMode('tabbed')}
+                        >
+                          📑 Category Tabs
+                        </button>
+                        <button
+                          type="button"
+                          className={`btn ${managerViewMode === 'grouped' ? 'btn-accent' : 'btn-secondary'}`}
+                          style={{ padding: '4px 10px', fontSize: '0.75rem', borderRadius: '4px' }}
+                          onClick={() => setManagerViewMode('grouped')}
+                        >
+                          📜 Group All Categories
+                        </button>
+                      </div>
+
+                      <button
+                        className="btn btn-accent"
+                        style={{ padding: '8px 16px', fontSize: '0.85rem' }}
+                        onClick={() => openAddPlayerModal()}
+                      >
+                        + Add New Player
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* CATEGORY FILTER TABS (Always visible in Tabbed Mode) */}
+                  {managerViewMode === 'tabbed' && (
+                    <div className="cat-filter-bar" style={{ margin: '4px 0 0 0' }}>
+                      <button
+                        type="button"
+                        className={`cat-pill-btn ${managerCategoryFilter === 'ALL' ? 'active' : ''}`}
+                        onClick={() => setManagerCategoryFilter('ALL')}
+                      >
+                        ALL CATEGORIES
+                        <span className="cat-pill-badge">{players.length}</span>
+                      </button>
+                      {ALL_CATEGORIES.map((cat) => {
+                        const catPlayers = players.filter(p => p.category.toUpperCase() === cat);
+                        const soldCount = catPlayers.filter(p => p.status === 'SOLD').length;
+                        const isComplete = catPlayers.length > 0 && soldCount === catPlayers.length;
+
+                        return (
+                          <button
+                            key={cat}
+                            type="button"
+                            className={`cat-pill-btn ${managerCategoryFilter === cat ? 'active' : ''}`}
+                            onClick={() => setManagerCategoryFilter(cat)}
+                          >
+                            CAT {cat}
+                            <span className="cat-pill-badge">{catPlayers.length}</span>
+                            {isComplete && <span style={{ fontSize: '0.7rem' }}>✅</span>}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
+
+                  {/* SEARCH & STATUS FILTER ROW */}
+                  <div className="admin-players-filter-row glass" style={{ padding: '10px 14px', borderRadius: '8px', margin: 0 }}>
+                    <div style={{ display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap' }}>
+                      <input
+                        type="text"
+                        placeholder="🔍 Search player name, position, team..."
+                        className="admin-search-input"
+                        value={managerSearchQuery}
+                        onChange={(e) => setManagerSearchQuery(e.target.value)}
+                      />
+                      <select
+                        className="admin-search-input"
+                        style={{ minWidth: '140px' }}
+                        value={managerStatusFilter}
+                        onChange={(e) => setManagerStatusFilter(e.target.value)}
+                      >
+                        <option value="ALL">All Statuses</option>
+                        <option value="UPCOMING">Upcoming</option>
+                        <option value="LIVE">Live</option>
+                        <option value="SOLD">Sold</option>
+                        <option value="UNSOLD">Unsold</option>
+                      </select>
+
+                      {(managerSearchQuery || managerStatusFilter !== 'ALL' || (managerViewMode === 'tabbed' && managerCategoryFilter !== 'ALL')) && (
+                        <button
+                          type="button"
+                          className="btn btn-secondary"
+                          style={{ padding: '4px 10px', fontSize: '0.75rem' }}
+                          onClick={() => {
+                            setManagerSearchQuery('');
+                            setManagerStatusFilter('ALL');
+                            setManagerCategoryFilter('ALL');
+                          }}
+                        >
+                          Clear Filters
+                        </button>
+                      )}
+                    </div>
+
+                    <div style={{ fontSize: '0.8rem', color: 'var(--text-gray)' }}>
+                      Showing <strong>{displayedPlayers.length}</strong> of {players.length} players
+                    </div>
+                  </div>
+
+                  {/* TABBED VIEW MODE */}
+                  {managerViewMode === 'tabbed' && (
+                    <div className="glass" style={{ padding: '14px', borderRadius: '10px' }}>
+                      {managerCategoryFilter !== 'ALL' && (
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px', paddingBottom: '10px', borderBottom: '1px solid var(--border-glass)' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                            <span style={{ fontFamily: 'var(--font-sports)', fontSize: '1.2rem', fontWeight: 800, color: 'var(--accent-gold)' }}>
+                              🏷️ CATEGORY {managerCategoryFilter}
+                            </span>
+                            <span className="cat-stat-chip" style={{ color: 'var(--accent-gold)', fontWeight: 700 }}>
+                              Base Price: ৳{(defaultPrices[managerCategoryFilter] || 5000).toLocaleString()}
+                            </span>
+                          </div>
+                          <button
+                            className="btn btn-accent"
+                            style={{ padding: '4px 12px', fontSize: '0.8rem' }}
+                            onClick={() => openAddPlayerModal(managerCategoryFilter)}
+                          >
+                            + Add Player to CAT {managerCategoryFilter}
+                          </button>
+                        </div>
+                      )}
+                      {renderPlayerTable(displayedPlayers, managerCategoryFilter !== 'ALL' ? managerCategoryFilter : undefined)}
+                    </div>
+                  )}
+
+                  {/* GROUPED VIEW MODE (Displays category by category sections) */}
+                  {managerViewMode === 'grouped' && (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                      {ALL_CATEGORIES.map((cat) => {
+                        const catPlayers = players.filter(p => p.category.toUpperCase() === cat);
+                        const filteredCatPlayers = applyFilters(catPlayers);
+                        const soldCount = catPlayers.filter(p => p.status === 'SOLD').length;
+                        const unsoldCount = catPlayers.filter(p => p.status === 'UNSOLD').length;
+                        const upcomingCount = catPlayers.filter(p => p.status === 'UPCOMING').length;
+
+                        // If user is searching/filtering and no players match this category, skip
+                        if ((managerSearchQuery || managerStatusFilter !== 'ALL') && filteredCatPlayers.length === 0) {
+                          return null;
+                        }
+
+                        return (
+                          <div key={cat} className="glass" style={{ padding: '14px', borderRadius: '10px', border: '1px solid rgba(255, 215, 0, 0.15)' }}>
+                            {/* Category Header */}
+                            <div className="cat-section-header" style={{ margin: '0 0 12px 0' }}>
+                              <div className="cat-section-title">
+                                <span>🏷️ CATEGORY {cat}</span>
+                                <span className="cat-stat-chip" style={{ fontSize: '0.75rem', color: 'var(--accent-gold)' }}>
+                                  Base: ৳{(defaultPrices[cat] || 5000).toLocaleString()}
+                                </span>
+                                <span className="cat-stat-chip" style={{ fontSize: '0.75rem', color: 'var(--accent-blue)' }}>
+                                  {catPlayers.length} {catPlayers.length === 1 ? 'Player' : 'Players'}
+                                </span>
+                              </div>
+
+                              <div className="cat-section-stats">
+                                <span style={{ color: '#00d26a', fontWeight: 600 }}>✅ {soldCount} Sold</span>
+                                {unsoldCount > 0 && <span style={{ color: '#ff4455', fontWeight: 600 }}>⚠️ {unsoldCount} Unsold</span>}
+                                <span style={{ color: 'var(--text-muted)' }}>⏳ {upcomingCount} Upcoming</span>
+                                <button
+                                  className="btn btn-accent"
+                                  style={{ padding: '4px 10px', fontSize: '0.75rem', marginLeft: '6px' }}
+                                  onClick={() => openAddPlayerModal(cat)}
+                                >
+                                  + Add to CAT {cat}
+                                </button>
+                              </div>
+                            </div>
+
+                            {/* Category Table */}
+                            {renderPlayerTable(filteredCatPlayers, cat)}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
                 </div>
-              </div>
-            )}
+              );
+            })()}
 
             {/* TEAMS PANE */}
             {activePane === 'teams' && (

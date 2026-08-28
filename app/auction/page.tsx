@@ -42,6 +42,11 @@ export default function BroadcastAuctionBoardPage() {
   const [toast, setToast] = useState<{ message: string; type: string } | null>(null);
   const [soldModal, setSoldModal] = useState<{ player: Player; team: Team | null; price: number; type: 'SOLD' | 'UNSOLD' } | null>(null);
 
+  // All Players Tab Filters
+  const [playerTabCategory, setPlayerTabCategory] = useState<string>('ALL');
+  const [playerTabSearch, setPlayerTabSearch] = useState<string>('');
+  const [playerTabStatus, setPlayerTabStatus] = useState<string>('ALL');
+
   const showToast = (message: string, type: 'info' | 'success' | 'warning' | 'danger' = 'info') => {
     setToast({ message, type });
     setTimeout(() => setToast(null), 4000);
@@ -146,6 +151,18 @@ export default function BroadcastAuctionBoardPage() {
     const data = await res.json();
     if (!res.ok) showToast(data.error, 'danger');
     else fetchSnapshot();
+  };
+
+  const handleUndoBid = async () => {
+    if (!confirm('Are you sure you want to undo the last bid?')) return;
+    const res = await fetch('/api/auction/undo-bid', { method: 'POST' });
+    const data = await res.json();
+    if (res.ok) {
+      showToast(data.message || 'Last bid undone!', 'warning');
+      fetchSnapshot();
+    } else {
+      showToast(data.error || 'Failed to undo bid', 'danger');
+    }
   };
 
   const handleNextPlayer = async () => {
@@ -319,6 +336,18 @@ export default function BroadcastAuctionBoardPage() {
 
                   <button className="btn-unsold-action" onClick={handleUnsold}>
                     ✖ MARK UNSOLD
+                  </button>
+                </div>
+
+                {/* UNDO LAST BID BAR */}
+                <div style={{ marginTop: '8px', display: 'flex', justifyContent: 'flex-end' }}>
+                  <button
+                    className="btn-undo-action"
+                    disabled={!leading_team && bids.length === 0}
+                    onClick={handleUndoBid}
+                    title="Undo the most recent bid placed on this player"
+                  >
+                    ↩ UNDO LAST BID
                   </button>
                 </div>
               </div>
@@ -525,55 +554,244 @@ export default function BroadcastAuctionBoardPage() {
           </div>
         )}
 
-        {/* ALL PLAYERS TAB */}
-        {activeTab === 'players-tab' && (
-          <div className="tab-content active">
-            <div className="section-header">
-              <h2>ALL LEAGUE PLAYERS</h2>
-              <p>Total Registered: {players.length} players</p>
-            </div>
-            <div className="players-grid">
-              {players.map((p) => {
+        {/* ALL PLAYERS TAB (CATEGORY-WISE DIRECTORY) */}
+        {activeTab === 'players-tab' && (() => {
+          const ALL_CATEGORIES = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'];
+          const defaultPrices: Record<string, number> = {
+            A: 25000, B: 18000, C: 15000, D: 12000,
+            E: 10000, F: 8000, G: 7000, H: 5000,
+          };
+
+          const filterPlayerList = (plist: Player[]) => {
+            return plist.filter(p => {
+              if (playerTabCategory !== 'ALL' && p.category.toUpperCase() !== playerTabCategory.toUpperCase()) {
+                return false;
+              }
+              if (playerTabStatus !== 'ALL' && p.status.toUpperCase() !== playerTabStatus.toUpperCase()) {
+                return false;
+              }
+              if (playerTabSearch.trim()) {
+                const q = playerTabSearch.toLowerCase();
                 const buyer = teams.find(t => t.id === p.sold_to);
                 return (
-                  <div key={p.id} className="player-card glass">
-                    <span className={`player-card-badge badge-${p.status.toLowerCase()}`}>
-                      {p.status}
+                  p.name.toLowerCase().includes(q) ||
+                  p.position.toLowerCase().includes(q) ||
+                  (buyer && buyer.name.toLowerCase().includes(q))
+                );
+              }
+              return true;
+            });
+          };
+
+          const displayedList = filterPlayerList(players);
+
+          const renderPlayerCard = (p: Player) => {
+            const buyer = teams.find(t => t.id === p.sold_to);
+            return (
+              <div key={p.id} className="player-card glass">
+                <span className={`player-card-badge badge-${p.status.toLowerCase()}`}>
+                  {p.status}
+                </span>
+                <div className="player-card-image-box">
+                  {p.photo_url ? (
+                    <img src={p.photo_url} alt={p.name} className="player-photo-img" />
+                  ) : (
+                    <span style={{ fontSize: '1.4rem', fontWeight: 700, color: 'var(--text-muted)' }}>
+                      {p.name.substring(0, 2).toUpperCase()}
                     </span>
-                    <div className="player-card-image-box">
-                      {p.photo_url ? (
-                        <img src={p.photo_url} alt={p.name} className="player-photo-img" />
-                      ) : (
-                        <span style={{ fontSize: '1.2rem', fontWeight: 700, color: 'var(--text-muted)' }}>
-                          {p.name.substring(0, 2).toUpperCase()}
-                        </span>
-                      )}
+                  )}
+                </div>
+                <div className="player-card-info">
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
+                    <span style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-muted)' }}>#{p.sort_order}</span>
+                    <span className="player-card-category">CAT {p.category}</span>
+                  </div>
+                  <h4>{p.name}</h4>
+                  <div className="player-card-meta">
+                    <span>⚽ {p.position}</span>
+                  </div>
+                </div>
+                <div className="player-card-price-details">
+                  <div>
+                    <span className="price-lbl">Base Price</span>
+                    <span className="price-val text-accent">৳{p.base_price.toLocaleString()}</span>
+                  </div>
+                  {p.status === 'SOLD' && (
+                    <div style={{ textAlign: 'right' }}>
+                      <span className="price-lbl">Sold to {buyer?.name || 'Franchise'}</span>
+                      <span className="price-val text-success">৳{p.sold_price?.toLocaleString()}</span>
                     </div>
-                    <div className="player-card-info">
-                      <h4>{p.name}</h4>
-                      <div className="player-card-meta">
-                        <span>{p.position}</span>
-                        <span className="player-card-category">CAT {p.category}</span>
-                      </div>
+                  )}
+                </div>
+              </div>
+            );
+          };
+
+          return (
+            <div className="tab-content active" style={{ display: 'flex', flexDirection: 'column', gap: '14px', overflowY: 'auto', paddingRight: '4px' }}>
+              {/* HEADER BAR */}
+              <div className="section-header" style={{ marginBottom: 0 }}>
+                <h2>LEAGUE PLAYERS DIRECTORY ({players.length} Total)</h2>
+                <p>Browse registered players categorized by auction tiers (Category A → H).</p>
+              </div>
+
+              {/* CATEGORY FILTER TABS */}
+              <div className="cat-filter-bar" style={{ margin: 0 }}>
+                <button
+                  type="button"
+                  className={`cat-pill-btn ${playerTabCategory === 'ALL' ? 'active' : ''}`}
+                  onClick={() => setPlayerTabCategory('ALL')}
+                >
+                  ALL CATEGORIES
+                  <span className="cat-pill-badge">{players.length}</span>
+                </button>
+                {ALL_CATEGORIES.map((cat) => {
+                  const inCat = players.filter(p => p.category.toUpperCase() === cat);
+                  const soldCount = inCat.filter(p => p.status === 'SOLD').length;
+                  const isDone = inCat.length > 0 && soldCount === inCat.length;
+
+                  return (
+                    <button
+                      key={cat}
+                      type="button"
+                      className={`cat-pill-btn ${playerTabCategory === cat ? 'active' : ''}`}
+                      onClick={() => setPlayerTabCategory(cat)}
+                    >
+                      CAT {cat}
+                      <span className="cat-pill-badge">{inCat.length}</span>
+                      {isDone && <span style={{ fontSize: '0.7rem' }}>✅</span>}
+                    </button>
+                  );
+                })}
+              </div>
+
+              {/* SEARCH & STATUS FILTER BAR */}
+              <div className="admin-players-filter-row glass" style={{ padding: '10px 14px', borderRadius: '8px', margin: 0 }}>
+                <div style={{ display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap' }}>
+                  <input
+                    type="text"
+                    placeholder="🔍 Search player name, position, team..."
+                    className="admin-search-input"
+                    value={playerTabSearch}
+                    onChange={(e) => setPlayerTabSearch(e.target.value)}
+                  />
+                  <select
+                    className="admin-search-input"
+                    style={{ minWidth: '140px' }}
+                    value={playerTabStatus}
+                    onChange={(e) => setPlayerTabStatus(e.target.value)}
+                  >
+                    <option value="ALL">All Statuses</option>
+                    <option value="UPCOMING">Upcoming</option>
+                    <option value="LIVE">Live</option>
+                    <option value="SOLD">Sold</option>
+                    <option value="UNSOLD">Unsold</option>
+                  </select>
+
+                  {(playerTabSearch || playerTabStatus !== 'ALL' || playerTabCategory !== 'ALL') && (
+                    <button
+                      type="button"
+                      className="btn btn-secondary"
+                      style={{ padding: '4px 10px', fontSize: '0.75rem' }}
+                      onClick={() => {
+                        setPlayerTabSearch('');
+                        setPlayerTabStatus('ALL');
+                        setPlayerTabCategory('ALL');
+                      }}
+                    >
+                      Clear Filters
+                    </button>
+                  )}
+                </div>
+
+                <div style={{ fontSize: '0.8rem', color: 'var(--text-gray)' }}>
+                  Showing <strong>{displayedList.length}</strong> of {players.length} players
+                </div>
+              </div>
+
+              {/* DISPLAY MODE 1: SPECIFIC CATEGORY SELECTED */}
+              {playerTabCategory !== 'ALL' && (
+                <div>
+                  <div className="cat-section-header">
+                    <div className="cat-section-title">
+                      <span>🏷️ CATEGORY {playerTabCategory}</span>
+                      <span className="cat-stat-chip" style={{ fontSize: '0.8rem', color: 'var(--accent-gold)' }}>
+                        Base: ৳{(defaultPrices[playerTabCategory] || 5000).toLocaleString()}
+                      </span>
+                      <span className="cat-stat-chip" style={{ fontSize: '0.8rem', color: 'var(--accent-blue)' }}>
+                        {displayedList.length} {displayedList.length === 1 ? 'Player' : 'Players'}
+                      </span>
                     </div>
-                    <div className="player-card-price-details">
-                      <div>
-                        <span className="price-lbl">Base Price</span>
-                        <span className="price-val text-accent">৳{p.base_price.toLocaleString()}</span>
-                      </div>
-                      {p.status === 'SOLD' && (
-                        <div style={{ textAlign: 'right' }}>
-                          <span className="price-lbl">Sold to {buyer?.name}</span>
-                          <span className="price-val text-success">৳{p.sold_price?.toLocaleString()}</span>
-                        </div>
-                      )}
+                    <div className="cat-section-stats">
+                      <span style={{ color: '#00d26a', fontWeight: 600 }}>
+                        ✅ {displayedList.filter(p => p.status === 'SOLD').length} Sold
+                      </span>
+                      <span style={{ color: 'var(--text-muted)' }}>
+                        ⏳ {displayedList.filter(p => p.status === 'UPCOMING').length} Remaining
+                      </span>
                     </div>
                   </div>
-                );
-              })}
+
+                  {displayedList.length === 0 ? (
+                    <div className="glass table-empty" style={{ borderRadius: '10px', padding: '30px' }}>
+                      No players match the criteria in Category {playerTabCategory}.
+                    </div>
+                  ) : (
+                    <div className="players-grid">
+                      {displayedList.map(renderPlayerCard)}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* DISPLAY MODE 2: ALL CATEGORIES (GROUPED SECTION BY SECTION) */}
+              {playerTabCategory === 'ALL' && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+                  {ALL_CATEGORIES.map((cat) => {
+                    const inCat = players.filter(p => p.category.toUpperCase() === cat);
+                    const filteredInCat = filterPlayerList(inCat);
+
+                    if (inCat.length === 0 && !playerTabSearch) return null;
+                    if (filteredInCat.length === 0 && (playerTabSearch || playerTabStatus !== 'ALL')) return null;
+
+                    const soldInCat = inCat.filter(p => p.status === 'SOLD').length;
+                    const upcomingInCat = inCat.filter(p => p.status === 'UPCOMING').length;
+
+                    return (
+                      <div key={cat}>
+                        <div className="cat-section-header" style={{ marginTop: 0 }}>
+                          <div className="cat-section-title">
+                            <span>🏷️ CATEGORY {cat}</span>
+                            <span className="cat-stat-chip" style={{ fontSize: '0.8rem', color: 'var(--accent-gold)' }}>
+                              Base: ৳{(defaultPrices[cat] || 5000).toLocaleString()}
+                            </span>
+                            <span className="cat-stat-chip" style={{ fontSize: '0.8rem', color: 'var(--accent-blue)' }}>
+                              {inCat.length} {inCat.length === 1 ? 'Player' : 'Players'}
+                            </span>
+                          </div>
+                          <div className="cat-section-stats">
+                            <span style={{ color: '#00d26a', fontWeight: 600 }}>✅ {soldInCat} Sold</span>
+                            <span style={{ color: 'var(--text-muted)' }}>⏳ {upcomingInCat} Upcoming</span>
+                          </div>
+                        </div>
+
+                        {filteredInCat.length === 0 ? (
+                          <div className="glass table-empty" style={{ borderRadius: '10px', padding: '20px' }}>
+                            No players in Category {cat} match your search.
+                          </div>
+                        ) : (
+                          <div className="players-grid">
+                            {filteredInCat.map(renderPlayerCard)}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
             </div>
-          </div>
-        )}
+          );
+        })()}
       </main>
 
       {/* TOAST & OVERLAYS */}
