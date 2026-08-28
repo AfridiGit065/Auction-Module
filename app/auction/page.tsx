@@ -481,36 +481,35 @@ export default function BroadcastAuctionBoardPage() {
                     className={`squad-select-btn ${activeSquadTeam?.id === t.id ? 'active' : ''}`}
                     onClick={() => setActiveSquadTeamId(t.id)}
                   >
-                    {t.name}
+                    <TeamLogo url={t.logo_url} name={t.name} size={24} />
+                    <span>{t.name}</span>
                   </button>
                 ))}
               </div>
 
               {activeSquadTeam && (
                 <div className="squad-details-card glass">
-                  <div className="squad-card-header">
-                    <div className="squad-team-info">
-                      <span className="squad-logo">
-                          <TeamLogo url={activeSquadTeam.logo_url} name={activeSquadTeam.name} size={48} />
-                        </span>
-                      <div>
-                        <h3>{activeSquadTeam.name}</h3>
-                        <p className="label-muted">Squad Roster</p>
-                      </div>
+                  <div className="squad-card-header-centered">
+                    <div className="team-logo-wrapper-large">
+                      <TeamLogo url={activeSquadTeam.logo_url} name={activeSquadTeam.name} size={84} />
                     </div>
-                    <div className="squad-summary-stats">
-                      <div>
+                    <div className="squad-header-title-block">
+                      <h3 className="team-name-disp-large">{activeSquadTeam.name}</h3>
+                      <p className="label-muted">Official Squad Roster</p>
+                    </div>
+                    <div className="squad-summary-stats-bar">
+                      <div className="squad-stat-box">
                         <span className="stat-lbl">Players Bought</span>
                         <span className="stat-val text-white">
                           {players.filter(p => p.sold_to === activeSquadTeam.id && p.status === 'SOLD').length}
                         </span>
                       </div>
-                      <div>
-                        <span className="stat-lbl">Spent</span>
+                      <div className="squad-stat-box">
+                        <span className="stat-lbl">Total Spent</span>
                         <span className="stat-val text-danger">৳{activeSquadTeam.spent.toLocaleString()}</span>
                       </div>
-                      <div>
-                        <span className="stat-lbl">Remaining</span>
+                      <div className="squad-stat-box">
+                        <span className="stat-lbl">Remaining Balance</span>
                         <span className="stat-val text-accent">
                           ৳{(activeSquadTeam.remaining_balance || settings.total_budget - activeSquadTeam.spent).toLocaleString()}
                         </span>
@@ -518,36 +517,43 @@ export default function BroadcastAuctionBoardPage() {
                     </div>
                   </div>
 
-                  <table className="squad-table">
-                    <thead>
-                      <tr>
-                        <th>#</th>
-                        <th>Player Name</th>
-                        <th>Position</th>
-                        <th>Category</th>
-                        <th>Purchase Price</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {players.filter(p => p.sold_to === activeSquadTeam.id && p.status === 'SOLD').length === 0 ? (
-                        <tr>
-                          <td colSpan={5} className="table-empty">This franchise has not bought any players yet.</td>
-                        </tr>
-                      ) : (
-                        players
-                          .filter(p => p.sold_to === activeSquadTeam.id && p.status === 'SOLD')
-                          .map((p, idx) => (
-                            <tr key={p.id}>
-                              <td>{idx + 1}</td>
-                              <td style={{ fontWeight: 600 }}>{p.name}</td>
-                              <td>{p.position}</td>
-                              <td><span className="player-card-category">CAT {p.category}</span></td>
-                              <td className="text-accent" style={{ fontWeight: 700 }}>৳{p.sold_price?.toLocaleString()}</td>
-                            </tr>
-                          ))
-                      )}
-                    </tbody>
-                  </table>
+                  {/* SQUAD PLAYERS ROSTER */}
+                  {players.filter(p => p.sold_to === activeSquadTeam.id && p.status === 'SOLD').length === 0 ? (
+                    <div className="squad-empty-state">
+                      <span className="empty-icon">⚽</span>
+                      <p>This franchise has not bought any players yet.</p>
+                    </div>
+                  ) : (
+                    <div className="squad-players-grid">
+                      {players
+                        .filter(p => p.sold_to === activeSquadTeam.id && p.status === 'SOLD')
+                        .map((p, idx) => (
+                          <div key={p.id} className="squad-player-card glass">
+                            <div className="squad-player-order-badge">#{idx + 1}</div>
+                            <div className="squad-player-photo-box">
+                              {p.photo_url ? (
+                                <img src={p.photo_url} alt={p.name} className="squad-player-img" />
+                              ) : (
+                                <span className="squad-player-avatar-fallback">
+                                  {p.name.substring(0, 2).toUpperCase()}
+                                </span>
+                              )}
+                            </div>
+                            <div className="squad-player-info">
+                              <h4 className="squad-player-name">{p.name}</h4>
+                              <div className="squad-player-meta-row">
+                                <span className="player-card-category">CAT {p.category}</span>
+                                <span className="squad-player-pos">⚽ {p.position}</span>
+                              </div>
+                              <div className="squad-player-price-box">
+                                <span className="price-lbl">Sold Price</span>
+                                <span className="squad-player-price">৳{p.sold_price?.toLocaleString()}</span>
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                    </div>
+                  )}
                 </div>
               )}
             </div>
