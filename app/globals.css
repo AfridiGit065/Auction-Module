@@ -135,20 +135,25 @@ a {
 .brand {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 14px;
 }
 
 .league-logo {
-  height: 50px;
-  width: 50px;
+  height: 64px;
+  width: 64px;
   object-fit: contain;
-  filter: drop-shadow(0 0 12px rgba(255, 215, 0, 0.4));
-  border-radius: 6px;
+  filter: drop-shadow(0 0 14px rgba(255, 215, 0, 0.45));
+  border-radius: 8px;
+  transition: transform var(--transition-fast);
+}
+
+.brand:hover .league-logo {
+  transform: scale(1.05);
 }
 
 .brand-text h1 {
-  font-size: 1.3rem;
-  line-height: 1.1;
+  font-size: 1.35rem;
+  line-height: 1.15;
   color: var(--text-white);
   letter-spacing: 1.5px;
 }
