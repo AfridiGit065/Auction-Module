@@ -425,14 +425,14 @@ export default function BroadcastAuctionBoardPage() {
 
                 return (
                   <div key={t.id} className="team-stat-card glass">
-                    <div className="team-card-header">
-                      <div className="team-card-title">
-                        <span className="team-logo-disp">
-                          <TeamLogo url={t.logo_url} name={t.name} size={38} />
-                        </span>
-                        <span className="team-name-disp">{t.name}</span>
+                    <div className="team-card-header-centered">
+                      <div className="team-logo-wrapper-large">
+                        <TeamLogo url={t.logo_url} name={t.name} size={80} />
                       </div>
-                      <span className="purchased-badge">{boughtCount} Players</span>
+                      <div className="team-title-block">
+                        <h3 className="team-name-disp-large">{t.name}</h3>
+                        <span className="purchased-badge">{boughtCount} Players Bought</span>
+                      </div>
                     </div>
 
                     <div className="budget-breakdown">
