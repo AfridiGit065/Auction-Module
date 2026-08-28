@@ -26,7 +26,7 @@ export default function Header({
     <header className="app-header">
       <div className="header-container">
         {/* BRAND */}
-        <div className="brand">
+        <Link href="/" className="brand" style={{ textDecoration: 'none', color: 'inherit' }}>
           <img
             src={logoUrl || '/rangdhanu-logo.png'}
             alt="রংধনু স্পোর্টিং ক্লাব Crest"
@@ -41,12 +41,15 @@ export default function Header({
               ORGANIZED BY <strong style={{ color: 'var(--accent-gold)', fontWeight: 700 }}>রংধনু স্পোর্টিং ক্লাব</strong>
             </span>
           </div>
-        </div>
+        </Link>
 
         {/* NAVIGATION TABS */}
         <nav className="main-nav">
           {!isAdminPage && onTabChange ? (
             <>
+              <Link href="/" className="nav-btn">
+                Landing Page
+              </Link>
               <button
                 className={`nav-btn ${activeTab === 'live-auction-tab' ? 'active' : ''}`}
                 onClick={() => onTabChange('live-auction-tab')}
@@ -76,9 +79,14 @@ export default function Header({
               </Link>
             </>
           ) : (
-            <Link href="/" className="nav-btn">
-              Back to Auction Board
-            </Link>
+            <>
+              <Link href="/" className="nav-btn">
+                🏠 Landing Page
+              </Link>
+              <Link href="/auction" className="nav-btn active">
+                ⚡ Live Auction Board
+              </Link>
+            </>
           )}
         </nav>
 
