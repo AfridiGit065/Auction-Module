@@ -215,6 +215,54 @@ export default function AdminPage() {
     }
   };
 
+  const handleResetAuction = async () => {
+    if (!confirm('Are you sure you want to reset the live auction session?\n\nThis will:\n• Return all players to "UPCOMING"\n• Reset all team budgets & spent amounts to 0 (100% full budget)\n• Clear all live bids & history\n• Reset live timer & board state\n\n✅ Your player profiles, photos, and team registrations will NOT be deleted.')) {
+      return;
+    }
+
+    try {
+      const res = await fetch('/api/admin/reset', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'RESET_AUCTION' }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        showToast(data.message || 'Auction reset successfully! Ready for a new auction.', 'success');
+        loadAdminData();
+      } else {
+        showToast(data.error || 'Failed to reset auction', 'danger');
+      }
+    } catch (e: any) {
+      showToast(e.message || 'Error resetting auction', 'danger');
+    }
+  };
+
+  const handleResetAll = async () => {
+    const confirmation = prompt('⚠️ FACTORY RESET WARNING: This will permanently delete ALL players, teams, bids, and history from the database.\n\nType "CONFIRM WIPE" to proceed:');
+    if (confirmation !== 'CONFIRM WIPE') {
+      if (confirmation !== null) showToast('Factory reset cancelled', 'info');
+      return;
+    }
+
+    try {
+      const res = await fetch('/api/admin/reset', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'RESET_ALL' }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        showToast(data.message || 'Factory reset completed!', 'success');
+        loadAdminData();
+      } else {
+        showToast(data.error || 'Failed to perform factory reset', 'danger');
+      }
+    } catch (e: any) {
+      showToast(e.message || 'Error performing factory reset', 'danger');
+    }
+  };
+
   // Category filter for manual control
   const [selectedCatFilter, setSelectedCatFilter] = useState<string>('ALL');
 
@@ -261,6 +309,23 @@ export default function AdminPage() {
               onClick={() => setActivePane('settings')}
             >
               League Settings
+            </button>
+
+            <div style={{ margin: '14px 0 8px', borderTop: '1px solid var(--border-glass)' }} />
+
+            <button
+              className="admin-nav-btn"
+              style={{
+                color: 'var(--accent-gold)',
+                border: '1px solid rgba(255, 215, 0, 0.3)',
+                background: 'rgba(255, 215, 0, 0.06)',
+                fontWeight: 700,
+                textAlign: 'left',
+              }}
+              onClick={handleResetAuction}
+              title="Reset auction state to start from scratch. Keeps players & teams."
+            >
+              🔄 Reset Auction
             </button>
           </div>
 
@@ -443,6 +508,17 @@ export default function AdminPage() {
                       </button>
                       <button className="btn btn-primary" onClick={handleResume} disabled={!livePlayer}>
                         ▶ RESUME TIMER
+                      </button>
+                    </div>
+
+                    <div style={{ marginTop: '10px', paddingTop: '10px', borderTop: '1px solid var(--border-glass)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Start a fresh session anytime:</span>
+                      <button
+                        className="btn btn-secondary"
+                        style={{ fontSize: '0.75rem', padding: '4px 12px', color: 'var(--accent-gold)', border: '1px solid rgba(255, 215, 0, 0.3)' }}
+                        onClick={handleResetAuction}
+                      >
+                        🔄 Reset Auction
                       </button>
                     </div>
                   </div>
@@ -739,6 +815,40 @@ export default function AdminPage() {
                   <button className="btn btn-accent btn-block" style={{ marginTop: 20 }} onClick={handleSaveSettings}>
                     Save Global Settings
                   </button>
+
+                  {/* AUCTION RESET & RE-USE SECTION */}
+                  <div style={{ marginTop: '28px', padding: '18px', background: 'rgba(255, 170, 0, 0.06)', border: '1px solid rgba(255, 170, 0, 0.3)', borderRadius: '10px' }}>
+                    <h3 style={{ color: 'var(--accent-gold)', margin: '0 0 8px 0', fontSize: '1rem', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      🔄 RE-USE / RESET AUCTION SESSION
+                    </h3>
+                    <p style={{ fontSize: '0.85rem', color: 'var(--text-gray)', margin: '0 0 14px 0', lineHeight: 1.5 }}>
+                      Want to run another auction or test from scratch? This button resets all players back to <strong>UPCOMING</strong>, restores all franchise budgets to <strong>100%</strong> (৳{settings.total_budget.toLocaleString()}), and clears all previous bids &amp; history. <em>All your registered player profiles, photos, and teams remain completely safe in the database!</em>
+                    </p>
+                    <button
+                      className="btn btn-warning btn-block"
+                      style={{ fontWeight: 700, padding: '10px 16px', fontSize: '0.95rem' }}
+                      onClick={handleResetAuction}
+                    >
+                      🔄 RESET AUCTION (Keep Players &amp; Teams, Start Over)
+                    </button>
+                  </div>
+
+                  {/* DANGER FACTORY WIPE */}
+                  <div style={{ marginTop: '16px', padding: '16px', background: 'rgba(255, 0, 85, 0.05)', border: '1px solid rgba(255, 0, 85, 0.3)', borderRadius: '10px' }}>
+                    <h3 style={{ color: 'var(--accent-red)', margin: '0 0 8px 0', fontSize: '0.9rem' }}>
+                      ⚠️ FACTORY RESET (WIPE DATABASE)
+                    </h3>
+                    <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', margin: '0 0 12px 0' }}>
+                      Permanently wipes ALL players, franchises, bids, and history from the database.
+                    </p>
+                    <button
+                      className="btn btn-danger"
+                      style={{ fontSize: '0.8rem', padding: '6px 14px' }}
+                      onClick={handleResetAll}
+                    >
+                      Wipe All Database Records
+                    </button>
+                  </div>
                 </div>
               </div>
             )}
