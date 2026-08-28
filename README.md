@@ -20,7 +20,7 @@ Production-ready live auction platform built with **Next.js 14 (App Router)**, *
 
 ### 3. Storage Bucket Setup
 1. In Supabase Dashboard, go to **Storage → Buckets**.
-2. Create a new bucket named **`dpl-images`**.
+2. Create a new bucket named **`dpl_images`**.
 3. Set the bucket privacy to **Public**.
 
 ### 4. Local Development

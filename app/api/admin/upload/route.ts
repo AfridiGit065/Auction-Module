@@ -28,7 +28,7 @@ export async function POST(req: Request) {
     const filePath = `${bucketFolder}/${entityId}.${fileExt}`;
 
     const { error: uploadErr } = await supabase.storage
-      .from('dpl-images')
+      .from('dpl_images')
       .upload(filePath, buffer, {
         contentType: file.type || 'image/png',
         upsert: true,
@@ -40,7 +40,7 @@ export async function POST(req: Request) {
     }
 
     const { data: publicUrlData } = supabase.storage
-      .from('dpl-images')
+      .from('dpl_images')
       .getPublicUrl(filePath);
 
     const publicUrl = publicUrlData.publicUrl;
