@@ -1,16 +1,16 @@
 import { Team, Player, Settings, AuctionState } from '../types';
 
-export const CATEGORY_ORDER: string[] = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'];
+export const CATEGORY_ORDER: string[] = ['H', 'G', 'F', 'E', 'D', 'C', 'B', 'A'];
 
 export const CATEGORY_BASE_PRICES: Record<string, number> = {
-  A: 25000,
-  B: 18000,
-  C: 15000,
-  D: 12000,
-  E: 10000,
-  F: 8000,
-  G: 7000,
   H: 5000,
+  G: 7000,
+  F: 8000,
+  E: 10000,
+  D: 12000,
+  C: 15000,
+  B: 18000,
+  A: 25000,
 };
 
 export interface CalculatedTeam extends Team {
@@ -23,6 +23,10 @@ export interface CalculatedTeam extends Team {
 /**
  * Computes team budgets, remaining balances, future category reserves, max legal bids,
  * and category purchase status.
+ *
+ * Rule: Each team must buy exactly 1 player per category.
+ * For each team, we must reserve enough budget to buy base-price players for every
+ * required category where this team has NOT yet bought a player (excluding the current category).
  */
 export function computeTeamBudgets(
   teams: Team[],
@@ -34,33 +38,13 @@ export function computeTeamBudgets(
   const currentPlayer = players.find(p => p.id === auctionState.current_player_id);
   const currentCategory = currentPlayer?.category?.toUpperCase();
 
-  // 2. Compute Reserved Base Price for FUTURE categories only
-  let reservedBasePrice = 0;
-
-  if (currentCategory && CATEGORY_ORDER.includes(currentCategory)) {
-    const currentIndex = CATEGORY_ORDER.indexOf(currentCategory);
-    // Future categories coming AFTER current category in sequence H -> G -> F -> E -> D -> C -> B -> A
-    const futureCategories = CATEGORY_ORDER.slice(currentIndex + 1);
-
-    reservedBasePrice = futureCategories.reduce((sum, cat) => {
-      const catPlayers = players.filter(p => p.category.toUpperCase() === cat);
-      const catBasePrice = catPlayers.length > 0 ? catPlayers[0].base_price : (CATEGORY_BASE_PRICES[cat] || 0);
-      return sum + catBasePrice;
-    }, 0);
-  } else {
-    // If no player is live, find upcoming categories
-    const upcomingCategories = Array.from(
-      new Set(players.filter(p => p.status === 'UPCOMING').map(p => p.category.toUpperCase()))
-    );
-    const sortedUpcoming = CATEGORY_ORDER.filter(c => upcomingCategories.includes(c));
-    const futureCategories = sortedUpcoming.length > 1 ? sortedUpcoming.slice(1) : [];
-
-    reservedBasePrice = futureCategories.reduce((sum, cat) => {
-      const catPlayers = players.filter(p => p.category.toUpperCase() === cat);
-      const catBasePrice = catPlayers.length > 0 ? catPlayers[0].base_price : (CATEGORY_BASE_PRICES[cat] || 0);
-      return sum + catBasePrice;
-    }, 0);
-  }
+  // 2. Distinct categories present in the tournament
+  const allTournamentCategories = Array.from(
+    new Set([
+      ...Object.keys(CATEGORY_BASE_PRICES),
+      ...players.map(p => p.category.toUpperCase()),
+    ])
+  );
 
   return teams.map(team => {
     // Calculate spent directly from sold players for this team
@@ -69,10 +53,34 @@ export function computeTeamBudgets(
     );
     const actualSpent = teamSoldPlayers.reduce((sum, p) => sum + (p.sold_price || 0), 0);
 
+    // Categories where this team has already purchased a player
+    const boughtCategories = teamSoldPlayers.map(p => p.category.toUpperCase());
+
     // Rule: Each team can buy max 1 player per category
     const hasBoughtInCat = currentCategory
-      ? teamSoldPlayers.some(p => p.category.toUpperCase() === currentCategory)
+      ? boughtCategories.includes(currentCategory)
       : false;
+
+    // Determine which categories this team still MUST purchase in future:
+    // Every category in the tournament where team hasn't bought yet, EXCLUDING the currentCategory being bid on right now
+    let categoriesToReserve: string[] = [];
+
+    if (currentCategory) {
+      categoriesToReserve = allTournamentCategories.filter(
+        cat => cat !== currentCategory && !boughtCategories.includes(cat)
+      );
+    } else {
+      // If no player is currently live, reserve for all unbought categories minus 1 (for the next player)
+      const unbought = allTournamentCategories.filter(cat => !boughtCategories.includes(cat));
+      categoriesToReserve = unbought.length > 1 ? unbought.slice(1) : [];
+    }
+
+    // Sum base prices for all categories this team must still buy
+    const reservedBasePrice = categoriesToReserve.reduce((sum, cat) => {
+      const catPlayers = players.filter(p => p.category.toUpperCase() === cat);
+      const catBasePrice = catPlayers.length > 0 ? catPlayers[0].base_price : (CATEGORY_BASE_PRICES[cat] || 5000);
+      return sum + catBasePrice;
+    }, 0);
 
     const remainingBalance = Math.max(0, settings.total_budget - actualSpent);
     const maxBid = Math.max(0, remainingBalance - reservedBasePrice);
