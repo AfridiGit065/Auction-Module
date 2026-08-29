@@ -1,16 +1,16 @@
 import { Team, Player, Settings, AuctionState } from '../types';
 
-export const CATEGORY_ORDER: string[] = ['H', 'G', 'F', 'E', 'D', 'C', 'B', 'A'];
+export const CATEGORY_ORDER: string[] = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'];
 
 export const CATEGORY_BASE_PRICES: Record<string, number> = {
-  H: 5000,
-  G: 7000,
-  F: 8000,
-  E: 10000,
-  D: 12000,
-  C: 15000,
-  B: 18000,
   A: 25000,
+  B: 18000,
+  C: 15000,
+  D: 12000,
+  E: 10000,
+  F: 8000,
+  G: 7000,
+  H: 5000,
 };
 
 export interface CalculatedTeam extends Team {

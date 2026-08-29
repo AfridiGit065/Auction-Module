@@ -46,6 +46,7 @@ export default function BroadcastAuctionBoardPage() {
   const [playerTabCategory, setPlayerTabCategory] = useState<string>('ALL');
   const [playerTabSearch, setPlayerTabSearch] = useState<string>('');
   const [playerTabStatus, setPlayerTabStatus] = useState<string>('ALL');
+  const [teamCustomInputs, setTeamCustomInputs] = useState<Record<string, number>>({});
 
   const showToast = (message: string, type: 'info' | 'success' | 'warning' | 'danger' = 'info') => {
     setToast({ message, type });
@@ -166,12 +167,20 @@ export default function BroadcastAuctionBoardPage() {
   };
 
   const handleNextPlayer = async () => {
-    const res = await fetch('/api/auction/next-player', { method: 'POST' });
+    const currentCat = snapshot?.current_player?.category;
+    const res = await fetch('/api/auction/next-player', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ category: currentCat }),
+    });
     const data = await res.json();
     if (!res.ok) {
       showToast(data.error || 'No upcoming players in queue', 'warning');
     } else {
-      showToast(`Next Player Loaded: ${data.player?.name || ''}`, 'success');
+      showToast(
+        data.message || `Next Player Loaded: ${data.player?.name || ''}`,
+        data.isUnsoldRound ? 'warning' : 'success'
+      );
       fetchSnapshot();
     }
   };
@@ -356,7 +365,7 @@ export default function BroadcastAuctionBoardPage() {
               <div className="card-team-bids glass">
                 <div className="panel-header-bar">
                   <h3>FRANCHISE BID CONTROLS</h3>
-                  <span className="badge-increment">Increment: ৳{settings.bid_increment.toLocaleString()}</span>
+                  <span className="badge-increment">Default: ৳{settings.bid_increment.toLocaleString()} | Max Inc: ৳5,000</span>
                 </div>
                 <div className="team-bids-scroll">
                   {teams.map((t) => {
@@ -365,41 +374,163 @@ export default function BroadcastAuctionBoardPage() {
                     const maxBidAllowed = budgetInfo?.max_bid ?? remainingBal;
                     const isLeading = auction_state.leading_team_id === t.id;
                     const hasBoughtInCat = budgetInfo?.has_bought_in_category ?? false;
-                    const canBid = !isLeading && !hasBoughtInCat && maxBidAllowed >= nextMinBid && auction_state.status === 'LIVE';
+                    const isLive = auction_state.status === 'LIVE';
+
+                    const currentBaseAmount = auction_state.current_bid > 0
+                      ? auction_state.current_bid
+                      : (current_player?.base_price || 0);
+
+                    const customInc = Math.min(5000, Math.max(1000, teamCustomInputs[t.id] ?? settings.bid_increment));
+                    const customTargetBid = currentBaseAmount + customInc;
+                    const canDefaultBid = !isLeading && !hasBoughtInCat && maxBidAllowed >= nextMinBid && isLive;
+                    const canCustomBid = !isLeading && !hasBoughtInCat && maxBidAllowed >= customTargetBid && isLive && customTargetBid >= nextMinBid;
 
                     return (
-                      <div key={t.id} className={`team-bid-row ${isLeading ? 'leading' : ''}`}>
-                        <div className="t-identity-col">
-                          <TeamLogo url={t.logo_url} name={t.name} size={34} />
-                          <span className="t-name">{t.name}</span>
-                        </div>
-                        <div className="t-metrics-col">
-                          <div className="m-item">
-                            <span className="m-title">BALANCE</span>
-                            <span className="m-amount text-white">৳{remainingBal.toLocaleString()}</span>
+                      <div
+                        key={t.id}
+                        className={`team-bid-row ${isLeading ? 'leading' : ''}`}
+                        style={{
+                          display: 'flex',
+                          flexDirection: 'column',
+                          gap: '6px',
+                          padding: '10px 12px',
+                          marginBottom: '8px',
+                          borderRadius: '8px',
+                        }}
+                      >
+                        {/* TOP ROW: Identity + Metrics + Default Bid */}
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', gap: '10px' }}>
+                          <div className="t-identity-col" style={{ display: 'flex', alignItems: 'center', gap: '8px', flex: 1 }}>
+                            <TeamLogo url={t.logo_url} name={t.name} size={32} />
+                            <span className="t-name" style={{ fontWeight: 700, fontSize: '0.9rem' }}>{t.name}</span>
                           </div>
-                          <div className="m-item">
-                            <span className="m-title">MAX BID</span>
-                            <span className="m-amount text-success">৳{maxBidAllowed.toLocaleString()}</span>
+
+                          <div className="t-metrics-col" style={{ display: 'flex', gap: '12px' }}>
+                            <div className="m-item">
+                              <span className="m-title" style={{ fontSize: '0.65rem', color: 'var(--text-muted)' }}>BALANCE</span>
+                              <span className="m-amount text-white" style={{ fontSize: '0.82rem', fontWeight: 700 }}>৳{remainingBal.toLocaleString()}</span>
+                            </div>
+                            <div className="m-item">
+                              <span className="m-title" style={{ fontSize: '0.65rem', color: 'var(--text-muted)' }}>MAX BID</span>
+                              <span className="m-amount text-success" style={{ fontSize: '0.82rem', fontWeight: 700 }}>৳{maxBidAllowed.toLocaleString()}</span>
+                            </div>
+                          </div>
+
+                          <div className="t-action-col">
+                            {canDefaultBid ? (
+                              <button
+                                className="btn-place-bid"
+                                style={{ padding: '6px 12px', fontSize: '0.85rem' }}
+                                onClick={() => handlePlaceBid(t.id, nextMinBid)}
+                              >
+                                + BID ৳{nextMinBid.toLocaleString()}
+                              </button>
+                            ) : (
+                              <button className="btn-place-bid disabled" style={{ padding: '6px 12px', fontSize: '0.75rem' }} disabled>
+                                {isLeading
+                                  ? '🟡 LEADER'
+                                  : hasBoughtInCat
+                                  ? '🔒 BOUGHT'
+                                  : maxBidAllowed < nextMinBid
+                                  ? '🔴 MAX REACHED'
+                                  : 'BID DISABLED'}
+                              </button>
+                            )}
                           </div>
                         </div>
-                        <div className="t-action-col">
-                          {canBid ? (
-                            <button className="btn-place-bid" onClick={() => handlePlaceBid(t.id, nextMinBid)}>
-                              + BID ৳{nextMinBid.toLocaleString()}
-                            </button>
-                          ) : (
-                            <button className="btn-place-bid disabled" disabled>
-                              {isLeading
-                                ? '🟡 LEADER'
-                                : hasBoughtInCat
-                                ? '🔒 BOUGHT IN CAT'
-                                : maxBidAllowed < nextMinBid
-                                ? '🔴 MAX BID REACHED'
-                                : 'BID DISABLED'}
-                            </button>
-                          )}
-                        </div>
+
+                        {/* BOTTOM ROW: Custom Increment Controls (Max 5k) */}
+                        {isLive && !hasBoughtInCat && !isLeading && maxBidAllowed >= nextMinBid && (
+                          <div style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'space-between',
+                            background: 'rgba(0, 0, 0, 0.25)',
+                            padding: '4px 8px',
+                            borderRadius: '6px',
+                            border: '1px solid rgba(255, 255, 255, 0.06)',
+                            marginTop: '2px',
+                            gap: '6px',
+                          }}>
+                            <span style={{ fontSize: '0.7rem', color: 'var(--accent-gold)', fontWeight: 600, whiteSpace: 'nowrap' }}>
+                              ⚡ Custom Inc (Max 5k):
+                            </span>
+
+                            {/* Quick Increment Chips (1k, 2k, 3k, 4k, 5k) */}
+                            <div style={{ display: 'flex', gap: '3px', flexWrap: 'wrap' }}>
+                              {[1000, 2000, 3000, 4000, 5000].map((chip) => {
+                                const chipTargetBid = currentBaseAmount + chip;
+                                const isChipLegal = chipTargetBid <= maxBidAllowed && chipTargetBid >= nextMinBid;
+
+                                return (
+                                  <button
+                                    key={chip}
+                                    type="button"
+                                    onClick={() => handlePlaceBid(t.id, chipTargetBid)}
+                                    disabled={!isChipLegal}
+                                    style={{
+                                      padding: '2px 6px',
+                                      fontSize: '0.68rem',
+                                      borderRadius: '4px',
+                                      border: customInc === chip ? '1px solid var(--accent-gold)' : '1px solid rgba(255, 255, 255, 0.15)',
+                                      background: customInc === chip ? 'rgba(255, 215, 0, 0.2)' : 'rgba(255, 255, 255, 0.05)',
+                                      color: isChipLegal ? 'var(--text-white)' : 'var(--text-muted)',
+                                      cursor: isChipLegal ? 'pointer' : 'not-allowed',
+                                      fontWeight: 700,
+                                      transition: 'all 0.15s ease',
+                                    }}
+                                    title={`Bid ৳${chipTargetBid.toLocaleString()} (+৳${chip.toLocaleString()})`}
+                                  >
+                                    +{chip / 1000}k
+                                  </button>
+                                );
+                              })}
+                            </div>
+
+                            {/* Custom Input & Apply */}
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                              <input
+                                type="number"
+                                min={1000}
+                                max={5000}
+                                step={500}
+                                value={teamCustomInputs[t.id] ?? 1000}
+                                onChange={(e) => {
+                                  const val = Math.min(5000, Math.max(1000, Number(e.target.value) || 1000));
+                                  setTeamCustomInputs(prev => ({ ...prev, [t.id]: val }));
+                                }}
+                                style={{
+                                  width: '54px',
+                                  padding: '2px 4px',
+                                  fontSize: '0.7rem',
+                                  background: 'rgba(0,0,0,0.4)',
+                                  border: '1px solid rgba(255,215,0,0.3)',
+                                  borderRadius: '4px',
+                                  color: 'var(--accent-gold)',
+                                  textAlign: 'center',
+                                  fontWeight: 700,
+                                }}
+                              />
+                              <button
+                                type="button"
+                                onClick={() => handlePlaceBid(t.id, customTargetBid)}
+                                disabled={!canCustomBid}
+                                style={{
+                                  padding: '2px 6px',
+                                  fontSize: '0.68rem',
+                                  background: canCustomBid ? 'var(--accent-gold)' : 'rgba(255,255,255,0.1)',
+                                  color: canCustomBid ? '#000' : 'var(--text-muted)',
+                                  border: 'none',
+                                  borderRadius: '4px',
+                                  fontWeight: 800,
+                                  cursor: canCustomBid ? 'pointer' : 'not-allowed',
+                                }}
+                              >
+                                BID
+                              </button>
+                            </div>
+                          </div>
+                        )}
                       </div>
                     );
                   })}

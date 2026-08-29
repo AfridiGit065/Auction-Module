@@ -46,12 +46,17 @@ export default function AdminPage() {
         setPlayers(snap.players);
         setAuctionState(snap.auction_state);
 
-        // Auto-select next eligible player if none selected or if current selection is invalid
-        const activeCat = getActiveCategory(snap.players);
-        if (activeCat) {
-          const nextCandidate = getNextPlayerInCategory(snap.players, activeCat);
-          if (nextCandidate) {
-            setSelectedPlayerToStart(nextCandidate.id);
+        // Auto-select next eligible player and sync category
+        if (snap.current_player?.category) {
+          setActiveAuctionCategory(snap.current_player.category.toUpperCase());
+        } else {
+          const activeCat = getActiveCategory(snap.players);
+          if (activeCat) {
+            setActiveAuctionCategory(activeCat);
+            const nextCandidate = getNextPlayerInCategory(snap.players, activeCat);
+            if (nextCandidate) {
+              setSelectedPlayerToStart(nextCandidate.player.id);
+            }
           }
         }
       }
@@ -281,19 +286,43 @@ export default function AdminPage() {
     }
   };
 
-  // Category filter for manual control
-  const [selectedCatFilter, setSelectedCatFilter] = useState<string>('ALL');
+  // Category Selection for Live Auction Control
+  const [activeAuctionCategory, setActiveAuctionCategory] = useState<string>('A');
+
+  // Filtered players list based on active category
+  const activeCatProgress = getCategoryProgress(players, activeAuctionCategory);
+  const nextCandidateResult = getNextPlayerInCategory(players, activeAuctionCategory);
+  const nextCandidate = nextCandidateResult?.player;
+
+  // Filtered players for the bottom table
+  const categoryRosterPlayers = players.filter(
+    p => p.category.toUpperCase() === activeAuctionCategory.toUpperCase()
+  );
+
+  const handleLoadNextInCategory = async (catToLoad?: string) => {
+    const targetCat = catToLoad || activeAuctionCategory;
+    const res = await fetch('/api/auction/next-player', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ category: targetCat }),
+    });
+    const data = await res.json();
+    if (res.ok) {
+      showToast(
+        data.message || `Loaded ${data.player?.name} (Cat ${data.category}) to Auction Board!`,
+        data.isUnsoldRound ? 'warning' : 'success'
+      );
+      loadAdminData();
+    } else {
+      showToast(data.error || 'Failed to load next player', 'danger');
+    }
+  };
 
   // Compute active category and metrics
-  const activeCategory = getActiveCategory(players);
+  const overallActiveCategory = getActiveCategory(players, activeAuctionCategory);
   const livePlayer = players.find(p => p.id === auctionState?.current_player_id);
   const leadingTeam = teams.find(t => t.id === auctionState?.leading_team_id);
   const isLiveAuction = auctionState?.status === 'LIVE';
-
-  // Filtered players list based on admin category selection
-  const filteredPlayers = selectedCatFilter === 'ALL'
-    ? players
-    : players.filter(p => p.category.toUpperCase() === selectedCatFilter.toUpperCase());
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100vh' }}>
@@ -353,48 +382,49 @@ export default function AdminPage() {
             {activePane === 'control' && (
               <div className="admin-pane active" style={{ display: 'flex', flexDirection: 'column', gap: '14px', overflowY: 'auto', paddingRight: '6px' }}>
 
-                {/* 8-CATEGORY STATISTICS & PLAYER COUNTER MATRIX */}
+                {/* 8-CATEGORY STATISTICS & SELECTION MATRIX */}
                 <div className="control-box glass" style={{ padding: '12px 16px' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
                     <h3 style={{ margin: 0, fontSize: '0.9rem', letterSpacing: '1px', color: 'var(--accent-gold)' }}>
-                      📊 CATEGORY PLAYER COUNT &amp; PROGRESS MATRIX
+                      📊 CATEGORY AUCTION MATRIX (CLICK ANY CATEGORY TO RUN)
                     </h3>
                     <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
-                      Click any category card to filter players below
+                      Active Category: <strong style={{ color: 'var(--accent-gold)' }}>Category {activeAuctionCategory}</strong>
                     </span>
                   </div>
 
                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(8, 1fr)', gap: '8px' }}>
                     {CATEGORY_ORDER.map((cat) => {
                       const prog = getCategoryProgress(players, cat);
-                      const isSelected = selectedCatFilter === cat;
+                      const isSelected = activeAuctionCategory === cat;
 
                       return (
                         <div
                           key={cat}
-                          onClick={() => setSelectedCatFilter(selectedCatFilter === cat ? 'ALL' : cat)}
+                          onClick={() => setActiveAuctionCategory(cat)}
                           style={{
-                            padding: '8px 6px',
+                            padding: '10px 6px',
                             borderRadius: '8px',
                             textAlign: 'center',
                             cursor: 'pointer',
                             border: isSelected
                               ? '2px solid var(--accent-gold)'
-                              : prog.total > 0 && prog.sold === prog.total
+                              : prog.isComplete
                               ? '1px solid rgba(0, 210, 106, 0.4)'
-                              : '1px solid rgba(255, 255, 255, 0.1)',
+                              : '1px solid rgba(255, 255, 255, 0.12)',
                             background: isSelected
-                              ? 'linear-gradient(180deg, rgba(255, 215, 0, 0.2), rgba(0, 0, 0, 0.6))'
-                              : prog.total > 0 && prog.sold === prog.total
+                              ? 'linear-gradient(180deg, rgba(255, 215, 0, 0.25), rgba(0, 0, 0, 0.7))'
+                              : prog.isComplete
                               ? 'rgba(0, 210, 106, 0.08)'
                               : 'rgba(0, 0, 0, 0.25)',
-                            boxShadow: isSelected ? '0 0 12px rgba(255, 215, 0, 0.3)' : 'none',
+                            boxShadow: isSelected ? '0 0 14px rgba(255, 215, 0, 0.35)' : 'none',
+                            transform: isSelected ? 'scale(1.03)' : 'none',
                             transition: 'all 0.2s ease',
                           }}
                         >
                           <div style={{
                             fontFamily: 'var(--font-sports)',
-                            fontSize: '1.1rem',
+                            fontSize: '1.15rem',
                             fontWeight: 800,
                             color: isSelected ? 'var(--accent-gold)' : 'var(--text-white)'
                           }}>
@@ -403,7 +433,7 @@ export default function AdminPage() {
                           <div style={{ fontSize: '0.75rem', fontWeight: 700, marginTop: '2px', color: 'var(--accent-blue)' }}>
                             {prog.total} {prog.total === 1 ? 'Player' : 'Players'}
                           </div>
-                          <div style={{ fontSize: '0.65rem', marginTop: '3px', display: 'flex', justifyContent: 'center', gap: '4px', flexWrap: 'wrap' }}>
+                          <div style={{ fontSize: '0.65rem', marginTop: '4px', display: 'flex', justifyContent: 'center', gap: '4px', flexWrap: 'wrap' }}>
                             <span style={{ color: '#00d26a', fontWeight: 600 }}>✅ {prog.sold}</span>
                             {prog.unsold > 0 && <span style={{ color: '#ff4455', fontWeight: 700 }}>⚠️ {prog.unsold}</span>}
                             {prog.upcoming > 0 && <span style={{ color: 'var(--text-gray)' }}>⏳ {prog.upcoming}</span>}
@@ -414,64 +444,150 @@ export default function AdminPage() {
                   </div>
                 </div>
 
-                {/* MANUAL AUCTION CONTROL GRID */}
+                {/* CATEGORY-WISE AUCTION CONTROL GRID */}
                 <div className="admin-control-grid" style={{ gridTemplateColumns: '1.2fr 1fr', gap: '14px' }}>
 
-                  {/* LEFT: SELECT & START ANY PLAYER */}
-                  <div className="control-box glass">
+                  {/* LEFT: CATEGORY-WISE LOADER */}
+                  <div className="control-box glass" style={{ border: '1px solid rgba(255, 215, 0, 0.25)' }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
-                      <h3 style={{ margin: 0, color: 'var(--accent-gold)', fontSize: '0.95rem' }}>
-                        🎯 SELECT &amp; START ANY PLAYER
+                      <h3 style={{ margin: 0, color: 'var(--accent-gold)', fontSize: '0.95rem', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        🏷️ CATEGORY-WISE AUCTION LOADER
                       </h3>
-                      {selectedCatFilter !== 'ALL' && (
-                        <button
-                          className="btn btn-secondary"
-                          onClick={() => setSelectedCatFilter('ALL')}
-                          style={{ padding: '2px 8px', fontSize: '0.7rem' }}
-                        >
-                          Show All Categories
-                        </button>
-                      )}
-                    </div>
-
-                    {/* SELECT PLAYER FROM QUEUE */}
-                    <div className="form-group" style={{ marginBottom: '12px' }}>
-                      <label style={{ fontSize: '0.8rem', color: 'var(--text-gray)' }}>
-                        Select Player ({selectedCatFilter === 'ALL' ? 'All Categories' : `Category ${selectedCatFilter}`}):
-                      </label>
-                      <select
-                        className="form-control"
-                        value={selectedPlayerToStart}
-                        onChange={(e) => setSelectedPlayerToStart(e.target.value)}
-                      >
-                        {filteredPlayers.map((p) => (
-                          <option key={p.id} value={p.id}>
-                            [CAT {p.category}] #{p.sort_order} {p.name} ({p.position}) — ৳{p.base_price.toLocaleString()} [{p.status}]
-                          </option>
+                      {/* Category Switcher Pills */}
+                      <div style={{ display: 'flex', gap: '4px' }}>
+                        {CATEGORY_ORDER.map(c => (
+                          <button
+                            key={c}
+                            onClick={() => setActiveAuctionCategory(c)}
+                            className={`btn ${activeAuctionCategory === c ? 'btn-accent' : 'btn-secondary'}`}
+                            style={{ padding: '2px 7px', fontSize: '0.7rem', fontWeight: 700 }}
+                          >
+                            {c}
+                          </button>
                         ))}
-                      </select>
+                      </div>
                     </div>
 
-                    <div style={{ display: 'flex', gap: '8px' }}>
+                    {/* ROUND & PROGRESS STATUS BANNER */}
+                    <div style={{
+                      background: activeCatProgress.isRound2
+                        ? 'rgba(255, 68, 85, 0.12)'
+                        : activeCatProgress.isComplete
+                        ? 'rgba(0, 210, 106, 0.12)'
+                        : 'rgba(0, 229, 255, 0.1)',
+                      border: `1px solid ${
+                        activeCatProgress.isRound2
+                          ? 'rgba(255, 68, 85, 0.4)'
+                          : activeCatProgress.isComplete
+                          ? 'rgba(0, 210, 106, 0.4)'
+                          : 'rgba(0, 229, 255, 0.3)'
+                      }`,
+                      borderRadius: '8px',
+                      padding: '10px 12px',
+                      marginBottom: '12px',
+                    }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <span style={{ fontWeight: 800, fontSize: '0.9rem', color: 'var(--text-white)' }}>
+                          CATEGORY {activeAuctionCategory} STATUS
+                        </span>
+                        <span style={{
+                          fontSize: '0.75rem',
+                          fontWeight: 700,
+                          padding: '2px 8px',
+                          borderRadius: '4px',
+                          background: activeCatProgress.isRound2 ? '#ff4455' : activeCatProgress.isComplete ? '#00d26a' : 'var(--accent-blue)',
+                          color: '#000',
+                        }}>
+                          {activeCatProgress.isComplete
+                            ? 'COMPLETED (ALL SOLD)'
+                            : activeCatProgress.isRound2
+                            ? '⚠️ ROUND 2: UNSOLD RE-AUCTION'
+                            : '🟢 ROUND 1: REGULAR UPCOMING'}
+                        </span>
+                      </div>
+
+                      <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)', marginTop: '6px', display: 'flex', gap: '12px' }}>
+                        <span>Total: <strong style={{ color: 'var(--text-white)' }}>{activeCatProgress.total}</strong></span>
+                        <span>Upcoming: <strong style={{ color: 'var(--accent-blue)' }}>{activeCatProgress.upcoming}</strong></span>
+                        <span>Sold: <strong style={{ color: '#00d26a' }}>{activeCatProgress.sold}</strong></span>
+                        <span>Unsold: <strong style={{ color: '#ff4455' }}>{activeCatProgress.unsold}</strong></span>
+                      </div>
+                    </div>
+
+                    {/* NEXT PLAYER CANDIDATE CARD */}
+                    {nextCandidate ? (
+                      <div style={{
+                        background: 'rgba(0,0,0,0.35)',
+                        border: '1px solid var(--border-glass)',
+                        borderRadius: '8px',
+                        padding: '12px',
+                        marginBottom: '14px',
+                      }}>
+                        <div style={{ fontSize: '0.75rem', color: 'var(--accent-gold)', fontWeight: 700, textTransform: 'uppercase' }}>
+                          {nextCandidateResult?.isUnsoldRound ? '⚠️ Next to Re-Auction (Round 2 Unsold):' : '👉 Next Player in Category Queue:'}
+                        </div>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '4px' }}>
+                          <span style={{ fontWeight: 800, fontSize: '1.05rem', color: 'var(--text-white)' }}>
+                            #{nextCandidate.sort_order} {nextCandidate.name}
+                          </span>
+                          <span style={{ color: 'var(--accent-gold)', fontWeight: 800, fontSize: '1rem' }}>
+                            ৳{nextCandidate.base_price.toLocaleString()}
+                          </span>
+                        </div>
+                        <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '2px' }}>
+                          Position: {nextCandidate.position} | Category: <strong>{nextCandidate.category}</strong>
+                        </div>
+                      </div>
+                    ) : (
+                      <div style={{
+                        background: 'rgba(0,0,0,0.2)',
+                        borderRadius: '8px',
+                        padding: '12px',
+                        marginBottom: '14px',
+                        textAlign: 'center',
+                        color: 'var(--text-muted)',
+                        fontSize: '0.82rem',
+                      }}>
+                        {activeCatProgress.isComplete
+                          ? `All players in Category ${activeAuctionCategory} are SOLD! You can move to the next category.`
+                          : `No upcoming or unsold players left in Category ${activeAuctionCategory}.`}
+                      </div>
+                    )}
+
+                    {/* PRIMARY ACTION BUTTONS */}
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                       <button
                         className="btn btn-accent btn-large"
-                        style={{ flex: 1, fontWeight: 700 }}
-                        onClick={() => handleLoadPlayer(selectedPlayerToStart)}
-                        disabled={!selectedPlayerToStart}
+                        style={{
+                          fontWeight: 800,
+                          fontSize: '1rem',
+                          padding: '12px 16px',
+                          background: 'linear-gradient(135deg, var(--accent-gold) 0%, #ff8800 100%)',
+                          boxShadow: '0 0 16px rgba(255, 215, 0, 0.4)',
+                          color: '#000',
+                        }}
+                        onClick={() => handleLoadNextInCategory(activeAuctionCategory)}
+                        disabled={!nextCandidate}
                       >
-                        ▶ LOAD SELECTED PLAYER TO AUCTION BOARD ➔
+                        {nextCandidateResult?.isUnsoldRound
+                          ? `▶ LOAD UNSOLD PLAYER TO LIVE BOARD (ROUND 2) ➔`
+                          : `▶ LOAD NEXT IN CATEGORY ${activeAuctionCategory} ➔`}
                       </button>
-                      <button
-                        className="btn btn-secondary"
-                        onClick={handleNextPlayer}
-                        title="Load next available player from queue"
-                      >
-                        Auto Next
-                      </button>
+
+                      <div style={{ display: 'flex', gap: '8px' }}>
+                        <button
+                          className="btn btn-secondary"
+                          style={{ flex: 1, fontSize: '0.8rem' }}
+                          onClick={handleNextPlayer}
+                          title="Load next player from queue automatically"
+                        >
+                          ⚡ Auto Next (Sequential)
+                        </button>
+                      </div>
                     </div>
                   </div>
 
-                  {/* RIGHT: LIVE BOARD ACTIONS */}
+                  {/* RIGHT: LIVE BOARD CONTROLS */}
                   <div className="control-box glass">
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
                       <h3 style={{ margin: 0, color: 'var(--accent-gold)', fontSize: '0.95rem' }}>LIVE AUCTION CONTROLS</h3>
@@ -500,7 +616,7 @@ export default function AdminPage() {
                       </div>
                     ) : (
                       <div style={{ background: 'rgba(0, 0, 0, 0.2)', padding: '10px 14px', borderRadius: '8px', marginBottom: '12px', color: 'var(--text-muted)', fontSize: '0.8rem' }}>
-                        No player currently on the live auction board. Select any player on the left to start!
+                        No player currently on the live auction board. Click "LOAD NEXT IN CATEGORY {activeAuctionCategory}" on the left to start!
                       </div>
                     )}
 
@@ -554,19 +670,19 @@ export default function AdminPage() {
 
                 </div>
 
-                {/* PLAYERS ROSTER TABLE WITH 1-CLICK START ACTION */}
+                {/* PLAYERS ROSTER TABLE FOR ACTIVE CATEGORY */}
                 <div className="control-box glass" style={{ padding: '12px 16px' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
                     <h4 style={{ margin: 0, color: 'var(--text-white)', fontSize: '0.9rem' }}>
-                      📋 ALL PLAYERS LIST ({selectedCatFilter === 'ALL' ? `All Categories — ${players.length} Total` : `Category ${selectedCatFilter} — ${filteredPlayers.length} Total`})
+                      📋 CATEGORY {activeAuctionCategory} ROSTER ({categoryRosterPlayers.length} Total Players)
                     </h4>
                     <div style={{ display: 'flex', gap: '6px' }}>
-                      {['ALL', ...CATEGORY_ORDER].map(c => (
+                      {CATEGORY_ORDER.map(c => (
                         <button
                           key={c}
-                          onClick={() => setSelectedCatFilter(c)}
-                          className={`btn ${selectedCatFilter === c ? 'btn-accent' : 'btn-secondary'}`}
-                          style={{ padding: '2px 8px', fontSize: '0.7rem' }}
+                          onClick={() => setActiveAuctionCategory(c)}
+                          className={`btn ${activeAuctionCategory === c ? 'btn-accent' : 'btn-secondary'}`}
+                          style={{ padding: '2px 8px', fontSize: '0.7rem', fontWeight: 700 }}
                         >
                           {c}
                         </button>
@@ -588,14 +704,14 @@ export default function AdminPage() {
                       </tr>
                     </thead>
                     <tbody>
-                      {filteredPlayers.length === 0 ? (
+                      {categoryRosterPlayers.length === 0 ? (
                         <tr>
                           <td colSpan={8} style={{ textAlign: 'center', color: 'var(--text-muted)', padding: '16px' }}>
-                            No players found in this category.
+                            No players found in Category {activeAuctionCategory}.
                           </td>
                         </tr>
                       ) : (
-                        filteredPlayers.map((p) => {
+                        categoryRosterPlayers.map((p) => {
                           const buyerTeam = teams.find(t => t.id === p.sold_to);
                           const isSold = p.status === 'SOLD';
                           const isUnsold = p.status === 'UNSOLD';
@@ -625,7 +741,7 @@ export default function AdminPage() {
                                     onClick={() => handleLoadPlayer(p.id)}
                                     style={{ padding: '3px 10px', fontSize: '0.75rem', fontWeight: 700 }}
                                   >
-                                    {isSold ? 'Re-Start' : isUnsold ? 'Re-Auction' : '▶ Start Auction'}
+                                    {isSold ? 'Re-Start' : isUnsold ? 'Re-Auction' : '▶ Start'}
                                   </button>
                                 )}
                               </td>
