@@ -18,6 +18,13 @@ export async function POST(req: Request) {
       const player = players.find(p => p.id === playerId);
       if (!player) return NextResponse.json({ error: 'Player not found' }, { status: 404 });
 
+      // Reset any other players currently marked LIVE back to UPCOMING
+      players.forEach(p => {
+        if (p.id !== playerId && p.status === 'LIVE') {
+          p.status = 'UPCOMING';
+        }
+      });
+
       player.status = 'LIVE';
       demoState.auction_state.status = 'LIVE';
       demoState.auction_state.current_player_id = playerId;
@@ -43,6 +50,8 @@ export async function POST(req: Request) {
 
     const countdownTime = settingsRes.data?.countdown_time || 30;
 
+    // Reset any other players currently marked LIVE back to UPCOMING
+    await supabase.from('players').update({ status: 'UPCOMING' }).eq('status', 'LIVE').neq('id', playerId);
     await supabase.from('players').update({ status: 'LIVE' }).eq('id', playerId);
 
     await supabase.from('auction_state').update({

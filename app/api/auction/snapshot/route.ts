@@ -46,7 +46,7 @@ export async function GET() {
 
     const settings: Settings = settingsRes.data;
     const rawTeams: Team[] = teamsRes.data || [];
-    const players: Player[] = playersRes.data || [];
+    const rawPlayers: Player[] = playersRes.data || [];
     const auctionState: AuctionState = stateRes.data || {
       id: 1,
       status: 'UPCOMING',
@@ -57,6 +57,14 @@ export async function GET() {
       timer_active: false,
       updated_at: new Date().toISOString(),
     };
+
+    // Ensure only the active auction player has status LIVE
+    const players: Player[] = rawPlayers.map(p => {
+      if (p.status === 'LIVE' && p.id !== auctionState.current_player_id) {
+        return { ...p, status: 'UPCOMING' };
+      }
+      return p;
+    });
 
     const teams = computeTeamBudgets(rawTeams, players, settings, auctionState);
     const currentPlayer = players.find(p => p.id === auctionState.current_player_id) || null;

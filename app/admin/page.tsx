@@ -715,7 +715,8 @@ export default function AdminPage() {
                           const buyerTeam = teams.find(t => t.id === p.sold_to);
                           const isSold = p.status === 'SOLD';
                           const isUnsold = p.status === 'UNSOLD';
-                          const isLive = p.status === 'LIVE';
+                          const isLive = auctionState?.current_player_id === p.id && (auctionState?.status === 'LIVE' || auctionState?.status === 'PAUSED');
+                          const displayStatus = isLive ? 'LIVE' : (p.status === 'LIVE' ? 'UPCOMING' : p.status);
 
                           return (
                             <tr key={p.id}>
@@ -725,8 +726,8 @@ export default function AdminPage() {
                               <td>{p.position}</td>
                               <td className="text-accent">৳{p.base_price.toLocaleString()}</td>
                               <td>
-                                <span className={`player-card-badge badge-${p.status.toLowerCase()}`}>
-                                  {p.status}
+                                <span className={`player-card-badge badge-${displayStatus.toLowerCase()}`}>
+                                  {displayStatus}
                                 </span>
                               </td>
                               <td style={{ color: buyerTeam ? 'var(--accent-gold)' : 'var(--text-muted)' }}>
@@ -827,7 +828,8 @@ export default function AdminPage() {
                       <tbody>
                         {playerList.map((p) => {
                           const buyerTeam = teams.find(t => t.id === p.sold_to);
-                          const isLive = p.status === 'LIVE';
+                          const isLive = auctionState?.current_player_id === p.id && (auctionState?.status === 'LIVE' || auctionState?.status === 'PAUSED');
+                          const displayStatus = isLive ? 'LIVE' : (p.status === 'LIVE' ? 'UPCOMING' : p.status);
 
                           return (
                             <tr key={p.id}>
@@ -850,8 +852,8 @@ export default function AdminPage() {
                               <td>{p.position}</td>
                               <td className="text-accent" style={{ fontWeight: 700 }}>৳{p.base_price.toLocaleString()}</td>
                               <td>
-                                <span className={`player-card-badge badge-${p.status.toLowerCase()}`}>
-                                  {p.status}
+                                <span className={`player-card-badge badge-${displayStatus.toLowerCase()}`}>
+                                  {displayStatus}
                                 </span>
                               </td>
                               <td style={{ fontSize: '0.8rem' }}>

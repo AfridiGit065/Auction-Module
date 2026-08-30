@@ -724,10 +724,12 @@ export default function BroadcastAuctionBoardPage() {
 
           const renderPlayerCard = (p: Player) => {
             const buyer = teams.find(t => t.id === p.sold_to);
+            const isLive = auction_state?.current_player_id === p.id && (auction_state?.status === 'LIVE' || auction_state?.status === 'PAUSED');
+            const displayStatus = isLive ? 'LIVE' : (p.status === 'LIVE' ? 'UPCOMING' : p.status);
             return (
               <div key={p.id} className="player-card glass">
-                <span className={`player-card-badge badge-${p.status.toLowerCase()}`}>
-                  {p.status}
+                <span className={`player-card-badge badge-${displayStatus.toLowerCase()}`}>
+                  {displayStatus}
                 </span>
                 <div className="player-card-image-box">
                   {p.photo_url ? (

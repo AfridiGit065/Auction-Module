@@ -52,6 +52,13 @@ export async function POST(req: Request) {
 
       const targetPlayer = nextResult.player;
 
+      // Reset any other players currently marked LIVE back to UPCOMING
+      players.forEach(p => {
+        if (p.id !== targetPlayer.id && p.status === 'LIVE') {
+          p.status = 'UPCOMING';
+        }
+      });
+
       targetPlayer.status = 'LIVE';
       demoState.auction_state.status = 'LIVE';
       demoState.auction_state.current_player_id = targetPlayer.id;
@@ -115,6 +122,8 @@ export async function POST(req: Request) {
 
     const targetPlayer = nextResult.player;
 
+    // Reset any other players currently marked LIVE back to UPCOMING
+    await supabase.from('players').update({ status: 'UPCOMING' }).eq('status', 'LIVE').neq('id', targetPlayer.id);
     await supabase.from('players').update({ status: 'LIVE' }).eq('id', targetPlayer.id);
 
     await supabase.from('auction_state').update({
