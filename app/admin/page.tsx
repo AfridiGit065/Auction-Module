@@ -83,7 +83,7 @@ export default function AdminPage() {
         category: playerModal.category,
         position: playerModal.position || 'Forward',
         basePrice: playerModal.base_price,
-        photoUrl: playerModal.photo_url,
+        photoUrl: playerModal.photo_url || null,
         sortOrder: playerModal.sort_order || 0,
       }),
     });
@@ -1228,7 +1228,7 @@ export default function AdminPage() {
                       entityId="dpl-league-crest"
                       currentUrl={settings.logo_url}
                       label="📤 Upload Photo from your device (Supabase Storage)"
-                      onUploadSuccess={(url) => setSettings({ ...settings, logo_url: url })}
+                      onUploadSuccess={(url) => setSettings((prev) => (prev ? { ...prev, logo_url: url || null } : null))}
                     />
                   </div>
 
@@ -1349,7 +1349,7 @@ export default function AdminPage() {
               entityId={playerModal.id || `player-${Date.now()}`}
               currentUrl={playerModal.photo_url}
               label="Upload Player Photo to Supabase Storage"
-              onUploadSuccess={(url) => setPlayerModal({ ...playerModal, photo_url: url })}
+              onUploadSuccess={(url) => setPlayerModal((prev) => (prev ? { ...prev, photo_url: url || null } : null))}
             />
 
             <div className="modal-actions">
@@ -1385,7 +1385,7 @@ export default function AdminPage() {
               entityId={teamModal.id || `team-${Date.now()}`}
               currentUrl={teamModal.logo_url}
               label="Upload Team Logo to Supabase Storage"
-              onUploadSuccess={(url) => setTeamModal({ ...teamModal, logo_url: url })}
+              onUploadSuccess={(url) => setTeamModal((prev) => (prev ? { ...prev, logo_url: url || null } : null))}
             />
 
             <div className="modal-actions">

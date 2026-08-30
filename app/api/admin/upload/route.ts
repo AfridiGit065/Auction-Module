@@ -25,7 +25,9 @@ export async function POST(req: Request) {
     const bytes = await file.arrayBuffer();
     const buffer = Buffer.from(bytes);
     const fileExt = file.name.split('.').pop() || 'png';
-    const filePath = `${bucketFolder}/${entityId}.${fileExt}`;
+    const cleanEntityId = entityId.replace(/[^a-zA-Z0-9_-]/g, '_');
+    const timestamp = Date.now();
+    const filePath = `${bucketFolder}/${cleanEntityId}_${timestamp}.${fileExt}`;
 
     const { error: uploadErr } = await supabase.storage
       .from('dpl_images')

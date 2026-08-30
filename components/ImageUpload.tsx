@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { ImageBucket } from '@/lib/types';
 
 interface ImageUploadProps {
@@ -21,6 +21,11 @@ export default function ImageUpload({
   const [uploading, setUploading] = useState(false);
   const [preview, setPreview] = useState<string | null>(currentUrl || null);
   const [error, setError] = useState<string | null>(null);
+
+  // Synchronize preview whenever currentUrl changes
+  useEffect(() => {
+    setPreview(currentUrl || null);
+  }, [currentUrl]);
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -61,7 +66,14 @@ export default function ImageUpload({
       setError(err.message || 'Upload error');
     } finally {
       setUploading(false);
+      // Reset input value so re-selecting the same file will trigger onChange
+      e.target.value = '';
     }
+  };
+
+  const handleRemovePhoto = () => {
+    setPreview(null);
+    onUploadSuccess('');
   };
 
   return (
@@ -69,13 +81,27 @@ export default function ImageUpload({
       <label style={{ fontSize: '0.8rem', color: 'var(--accent-gold)' }}>{label}</label>
 
       {preview && (
-        <div style={{ margin: '8px 0', display: 'flex', alignItems: 'center', gap: '12px' }}>
-          <img
-            src={preview}
-            alt="Preview"
-            style={{ width: '50px', height: '50px', objectFit: 'cover', borderRadius: '8px', border: '1px solid var(--border-neon)' }}
-          />
-          <span style={{ fontSize: '0.75rem', color: 'var(--text-gray)' }}>Image stored in Supabase Storage</span>
+        <div style={{ margin: '8px 0', display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: 'rgba(0,0,0,0.3)', padding: '6px 10px', borderRadius: '6px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <img
+              src={preview}
+              alt="Preview"
+              style={{ width: '44px', height: '44px', objectFit: 'cover', borderRadius: '6px', border: '1px solid var(--border-neon)' }}
+            />
+            <div>
+              <div style={{ fontSize: '0.78rem', color: '#00d26a', fontWeight: 600 }}>✓ Image Ready</div>
+              <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>Uploaded to Storage</div>
+            </div>
+          </div>
+          <button
+            type="button"
+            className="btn btn-secondary"
+            style={{ padding: '2px 8px', fontSize: '0.72rem', color: 'var(--accent-red)' }}
+            onClick={handleRemovePhoto}
+            title="Remove photo"
+          >
+            ✕ Remove
+          </button>
         </div>
       )}
 

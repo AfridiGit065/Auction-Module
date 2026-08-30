@@ -28,7 +28,8 @@ export async function POST(req: Request) {
           p.category = category;
           p.position = position;
           p.base_price = Number(basePrice);
-          p.photo_url = photoUrl;
+          p.photo_url = photoUrl || null;
+          if (sortOrder !== undefined) p.sort_order = Number(sortOrder);
         }
       } else {
         demoState.players.push({
@@ -61,7 +62,7 @@ export async function POST(req: Request) {
         category,
         position,
         base_price: Number(basePrice),
-        photo_url: photoUrl,
+        photo_url: photoUrl || null,
         sort_order: sortOrder ? Number(sortOrder) : 0,
       }).eq('id', id);
 
