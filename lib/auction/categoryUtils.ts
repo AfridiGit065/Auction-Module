@@ -100,9 +100,18 @@ export interface NextPlayerResult {
  * Returns the next player to auction within a category:
  * - Round 1: UPCOMING players (sorted by sort_order)
  * - Round 2: UNSOLD players (sorted by sort_order) for automatic re-auction
+ *
+ * @param currentPlayerId - The id of the player currently on the board.
+ *   When provided and that player is UNSOLD, we skip past them to the next
+ *   UNSOLD player in sort_order so the same player is never repeated back-to-back.
+ *
  * Returns null if no player is available in this category.
  */
-export function getNextPlayerInCategory(players: Player[], cat: string): NextPlayerResult | null {
+export function getNextPlayerInCategory(
+  players: Player[],
+  cat: string,
+  currentPlayerId?: string | null,
+): NextPlayerResult | null {
   const catUpper = cat.toUpperCase();
 
   // Round 1: Regular UPCOMING players
@@ -124,6 +133,29 @@ export function getNextPlayerInCategory(players: Player[], cat: string): NextPla
     .sort((a, b) => a.sort_order - b.sort_order);
 
   if (unsold.length > 0) {
+    // If the current player is in this unsold list, pick the NEXT one after it
+    // so we never serve the same unsold player back-to-back.
+    if (currentPlayerId) {
+      const currentIdx = unsold.findIndex(p => p.id === currentPlayerId);
+      if (currentIdx !== -1) {
+        // There is a next unsold player after the current one → use it
+        if (currentIdx + 1 < unsold.length) {
+          return {
+            player: unsold[currentIdx + 1],
+            round: 'UNSOLD_REAUCTION',
+            isUnsoldRound: true,
+          };
+        }
+        // Current is the last unsold → wrap back to the first one
+        // (they all need another re-auction chance)
+        return {
+          player: unsold[0],
+          round: 'UNSOLD_REAUCTION',
+          isUnsoldRound: true,
+        };
+      }
+    }
+
     return {
       player: unsold[0],
       round: 'UNSOLD_REAUCTION',

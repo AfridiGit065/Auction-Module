@@ -365,7 +365,7 @@ export default function BroadcastAuctionBoardPage() {
               <div className="card-team-bids glass">
                 <div className="panel-header-bar">
                   <h3>FRANCHISE BID CONTROLS</h3>
-                  <span className="badge-increment">Default: ৳{settings.bid_increment.toLocaleString()} | Max Inc: ৳5,000</span>
+                  <span className="badge-increment">Default: ৳{settings.bid_increment.toLocaleString()} | Custom: ৳2,500 – ৳15,000</span>
                 </div>
                 <div className="team-bids-scroll">
                   {teams.map((t) => {
@@ -380,8 +380,10 @@ export default function BroadcastAuctionBoardPage() {
                       ? auction_state.current_bid
                       : (current_player?.base_price || 0);
 
-                    const customInc = Math.min(5000, Math.max(1000, teamCustomInputs[t.id] ?? settings.bid_increment));
-                    const customTargetBid = currentBaseAmount + customInc;
+                    const customInc = Math.min(15000, Math.max(2500, teamCustomInputs[t.id] ?? 2500));
+                    // Round to nearest 2500 step
+                    const roundedInc = Math.round(customInc / 2500) * 2500;
+                    const customTargetBid = currentBaseAmount + roundedInc;
                     const canDefaultBid = !isLeading && !hasBoughtInCat && maxBidAllowed >= nextMinBid && isLive;
                     const canCustomBid = !isLeading && !hasBoughtInCat && maxBidAllowed >= customTargetBid && isLive && customTargetBid >= nextMinBid;
 
@@ -439,91 +441,65 @@ export default function BroadcastAuctionBoardPage() {
                           </div>
                         </div>
 
-                        {/* BOTTOM ROW: Custom Increment Controls (Max 5k) */}
+                        {/* BOTTOM ROW: Custom Bid Amount (2.5k – 15k, step 2.5k) */}
                         {isLive && !hasBoughtInCat && !isLeading && maxBidAllowed >= nextMinBid && (
                           <div style={{
                             display: 'flex',
                             alignItems: 'center',
                             justifyContent: 'space-between',
                             background: 'rgba(0, 0, 0, 0.25)',
-                            padding: '4px 8px',
+                            padding: '5px 8px',
                             borderRadius: '6px',
                             border: '1px solid rgba(255, 255, 255, 0.06)',
                             marginTop: '2px',
-                            gap: '6px',
+                            gap: '8px',
                           }}>
                             <span style={{ fontSize: '0.7rem', color: 'var(--accent-gold)', fontWeight: 600, whiteSpace: 'nowrap' }}>
-                              ⚡ Custom Inc (Max 5k):
+                              ⚡ Custom Bid:
                             </span>
 
-                            {/* Quick Increment Chips (1k, 2k, 3k, 4k, 5k) */}
-                            <div style={{ display: 'flex', gap: '3px', flexWrap: 'wrap' }}>
-                              {[1000, 2000, 3000, 4000, 5000].map((chip) => {
-                                const chipTargetBid = currentBaseAmount + chip;
-                                const isChipLegal = chipTargetBid <= maxBidAllowed && chipTargetBid >= nextMinBid;
-
-                                return (
-                                  <button
-                                    key={chip}
-                                    type="button"
-                                    onClick={() => handlePlaceBid(t.id, chipTargetBid)}
-                                    disabled={!isChipLegal}
-                                    style={{
-                                      padding: '2px 6px',
-                                      fontSize: '0.68rem',
-                                      borderRadius: '4px',
-                                      border: customInc === chip ? '1px solid var(--accent-gold)' : '1px solid rgba(255, 255, 255, 0.15)',
-                                      background: customInc === chip ? 'rgba(255, 215, 0, 0.2)' : 'rgba(255, 255, 255, 0.05)',
-                                      color: isChipLegal ? 'var(--text-white)' : 'var(--text-muted)',
-                                      cursor: isChipLegal ? 'pointer' : 'not-allowed',
-                                      fontWeight: 700,
-                                      transition: 'all 0.15s ease',
-                                    }}
-                                    title={`Bid ৳${chipTargetBid.toLocaleString()} (+৳${chip.toLocaleString()})`}
-                                  >
-                                    +{chip / 1000}k
-                                  </button>
-                                );
-                              })}
-                            </div>
-
-                            {/* Custom Input & Apply */}
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                            {/* Single input: 2500 → 15000, step 2500 */}
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flex: 1, justifyContent: 'flex-end' }}>
                               <input
                                 type="number"
-                                min={1000}
-                                max={5000}
-                                step={500}
-                                value={teamCustomInputs[t.id] ?? 1000}
+                                min={2500}
+                                max={15000}
+                                step={2500}
+                                value={teamCustomInputs[t.id] ?? 2500}
                                 onChange={(e) => {
-                                  const val = Math.min(5000, Math.max(1000, Number(e.target.value) || 1000));
-                                  setTeamCustomInputs(prev => ({ ...prev, [t.id]: val }));
+                                  const raw = Number(e.target.value) || 2500;
+                                  const clamped = Math.min(15000, Math.max(2500, raw));
+                                  setTeamCustomInputs(prev => ({ ...prev, [t.id]: clamped }));
                                 }}
                                 style={{
-                                  width: '54px',
-                                  padding: '2px 4px',
-                                  fontSize: '0.7rem',
+                                  width: '76px',
+                                  padding: '3px 6px',
+                                  fontSize: '0.72rem',
                                   background: 'rgba(0,0,0,0.4)',
-                                  border: '1px solid rgba(255,215,0,0.3)',
+                                  border: '1px solid rgba(255,215,0,0.35)',
                                   borderRadius: '4px',
                                   color: 'var(--accent-gold)',
                                   textAlign: 'center',
                                   fontWeight: 700,
                                 }}
                               />
+                              <span style={{ fontSize: '0.65rem', color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>
+                                → ৳{customTargetBid.toLocaleString()}
+                              </span>
                               <button
                                 type="button"
                                 onClick={() => handlePlaceBid(t.id, customTargetBid)}
                                 disabled={!canCustomBid}
                                 style={{
-                                  padding: '2px 6px',
-                                  fontSize: '0.68rem',
+                                  padding: '3px 8px',
+                                  fontSize: '0.7rem',
                                   background: canCustomBid ? 'var(--accent-gold)' : 'rgba(255,255,255,0.1)',
                                   color: canCustomBid ? '#000' : 'var(--text-muted)',
                                   border: 'none',
                                   borderRadius: '4px',
                                   fontWeight: 800,
                                   cursor: canCustomBid ? 'pointer' : 'not-allowed',
+                                  whiteSpace: 'nowrap',
                                 }}
                               >
                                 BID

@@ -34,7 +34,8 @@ export async function POST(req: Request) {
       }
 
       // 2. Pick next player: UPCOMING first (Round 1), then UNSOLD (Round 2 Re-Auction)
-      let nextResult = getNextPlayerInCategory(players, activeCategory);
+      // Pass currentPlayer?.id so unsold round respects serial order
+      let nextResult = getNextPlayerInCategory(players, activeCategory, currentPlayer?.id);
 
       // If active category has no more players, advance to next incomplete category
       if (!nextResult) {
@@ -104,7 +105,8 @@ export async function POST(req: Request) {
     }
 
     // 2. Pick next player: UPCOMING first (Round 1), then UNSOLD (Round 2 Re-Auction)
-    let nextResult = getNextPlayerInCategory(players, activeCategory);
+    // Pass currentPlayer?.id so unsold round respects serial order
+    let nextResult = getNextPlayerInCategory(players, activeCategory, currentPlayer?.id);
 
     // If active category has no more players, advance to next incomplete category
     if (!nextResult) {
